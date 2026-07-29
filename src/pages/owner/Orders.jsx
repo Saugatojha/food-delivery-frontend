@@ -6,7 +6,6 @@ import {
   updateOrderStatus,
   STATUS_FLOWS,
   getNextStatus,
-  isValidTransition,
 } from '../../services/orders'
 import api from '../../api/client'
 
