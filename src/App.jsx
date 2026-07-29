@@ -30,14 +30,14 @@ export default function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
               <Route path="/restaurant/:id" element={<ProtectedRoute><Restaurant /></ProtectedRoute>} />
-              <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
-              <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
-              <Route path="/orders" element={<ProtectedRoute><OrderTracking /></ProtectedRoute>} />
-              <Route path="/owner" element={<RoleRoute role="owner"><OwnerDashboard /></RoleRoute>} />
-              <Route path="/owner/menu" element={<RoleRoute role="owner"><OwnerMenu /></RoleRoute>} />
-              <Route path="/owner/orders" element={<RoleRoute role="owner"><OwnerOrders /></RoleRoute>} />
-              <Route path="/rider" element={<RoleRoute role="rider"><RiderDashboard /></RoleRoute>} />
-              <Route path="/admin" element={<RoleRoute role="admin"><AdminPanel /></RoleRoute>} />
+              <Route path="/cart" element={<RoleRoute roles={['customer']}><Cart /></RoleRoute>} />
+              <Route path="/checkout" element={<RoleRoute roles={['customer']}><Checkout /></RoleRoute>} />
+              <Route path="/orders" element={<RoleRoute roles={['customer']}><OrderTracking /></RoleRoute>} />
+              <Route path="/owner" element={<RoleRoute roles={['owner']}><OwnerDashboard /></RoleRoute>} />
+              <Route path="/owner/menu" element={<RoleRoute roles={['owner']}><OwnerMenu /></RoleRoute>} />
+              <Route path="/owner/orders" element={<RoleRoute roles={['owner']}><OwnerOrders /></RoleRoute>} />
+              <Route path="/rider" element={<RoleRoute roles={['rider']}><RiderDashboard /></RoleRoute>} />
+              <Route path="/admin" element={<RoleRoute roles={['admin']}><AdminPanel /></RoleRoute>} />
             </Routes>
           </main>
         </ToastProvider>

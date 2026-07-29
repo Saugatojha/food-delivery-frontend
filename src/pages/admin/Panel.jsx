@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { MOCK_USERS, MOCK_RESTAURANTS, formatPrice } from '../../data/mock'
+import { getAllOrders } from '../../services/orders'
 
 export default function AdminPanel() {
-  const [orders] = useState(JSON.parse(localStorage.getItem('orders') || '[]'))
+  const [orders] = useState(getAllOrders())
   const users = MOCK_USERS
   const restaurants = MOCK_RESTAURANTS
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)

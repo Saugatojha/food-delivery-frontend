@@ -33,9 +33,9 @@ index.html
                  │              ├─ /register -> Register
                  │              ├─ / -> ProtectedRoute -> Home
                  │              ├─ /restaurant/:id -> ProtectedRoute -> Restaurant
-                 │              ├─ /cart -> ProtectedRoute -> Cart
-                 │              ├─ /checkout -> ProtectedRoute -> Checkout
-                 │              ├─ /orders -> ProtectedRoute -> OrderTracking
+                 │              ├─ /cart -> RoleRoute(customer) -> Cart
+                 │              ├─ /checkout -> RoleRoute(customer) -> Checkout
+                 │              ├─ /orders -> RoleRoute(customer) -> OrderTracking
                  │              ├─ /owner -> RoleRoute(owner) -> OwnerDashboard
                  │              ├─ /owner/menu -> RoleRoute(owner) -> OwnerMenu
                  │              ├─ /owner/orders -> RoleRoute(owner) -> OwnerOrders
@@ -46,7 +46,7 @@ index.html
 ### Route Guards
 
 - **ProtectedRoute** — redirects to `/login` if no user in context. Saves intended path so user is sent back after login.
-- **RoleRoute** — extends ProtectedRoute. Redirects to `/` if user's role doesn't match the required role.
+- **RoleRoute** — accepts `roles` array. Redirects to `/login` if no user, or `/` if user's role isn't in the array.
 
 ---
 
@@ -55,11 +55,17 @@ index.html
 ```
 src/
 ├── api/
-│   └── client.js           Axios instance -> localhost:5000/api. 401 interceptor auto-redirects to login.
+│   └── client.js           Axios -> VITE_API_URL || localhost:5000/api. 401 clears auth + redirects.
 │
 ├── context/
-│   ├── AuthContext.jsx      User state, login/register/logout. Reads/writes localStorage.
+│   ├── AuthContext.jsx      User state, login/register/logout. Uses storage utility.
 │   └── ToastContext.jsx     Toast notification system. Auto-dismiss after 3s.
+│
+├── utils/
+│   └── storage.js           Safe readJson/writeJson/removeKeys. Catches JSON.parse failures.
+│
+├── services/
+│   └── orders.js            Shared order/cart operations. Status flow constants + validation.
 │
 ├── components/
 │   ├── EmptyState.jsx       Reusable: icon + title + message + optional action button.
@@ -67,7 +73,7 @@ src/
 │   ├── LoadingSkeleton.jsx  CardSkeleton + ListSkeleton with pulse animation.
 │   ├── Navbar.jsx           Brand link + role-aware nav links + user name + logout.
 │   ├── ProtectedRoute.jsx   Auth gate — redirects to /login.
-│   └── RoleRoute.jsx        Role gate — checks user.role matches required role.
+│   └── RoleRoute.jsx        Role gate — checks user.role against roles[] array.
 │
 ├── data/
 │   └── mock.js              All mock data + utility functions. Single source of truth.
@@ -76,20 +82,20 @@ src/
 │   ├── Login.jsx            Email/password form. Shows test account credentials. Toast feedback.
 │   ├── Register.jsx         Name/email/password form. Toast feedback.
 │   ├── Home.jsx             Restaurant grid. Closed restaurants greyed out + labeled.
-│   ├── Restaurant.jsx       Menu items for one restaurant. "Add to Cart" per item. Handles "not found" + "closed".
-│   ├── Cart.jsx             Cart items with qty +/-/remove. Total. Empty state with CTA.
-│   ├── Checkout.jsx         Address + payment method + order summary. Simulated 1.5s placement.
-│   ├── OrderTracking.jsx    5-step progress bar for each order. Empty state.
+│   ├── Restaurant.jsx       Menu items for one restaurant. "Add to Cart" per item. Uses storage utility.
+│   ├── Cart.jsx             Cart items with qty +/-/remove. Total. Empty state. Uses storage utility.
+│   ├── Checkout.jsx         Address + payment. Uses <Navigate> for empty cart. Uses orders service.
+│   ├── OrderTracking.jsx    5-step progress bar. Uses orders service.
 │   ├── owner/
-│   │   ├── Dashboard.jsx    3 stats cards (total orders, pending, revenue) + pending list.
+│   │   ├── Dashboard.jsx    3 stats cards + pending list. Uses orders service.
 │   │   ├── MenuManagement.jsx List items + inline add form.
-│   │   └── Orders.jsx       Status flow: Pending -> Confirmed -> Preparing -> Ready for Pickup
+│   │   └── Orders.jsx       Status flow via shared orders service with transition validation.
 │   ├── rider/
-│   │   └── Dashboard.jsx    Filtered orders: Ready for Pickup -> Out for Delivery -> Delivered
+│   │   └── Dashboard.jsx    Delivery flow via shared orders service with transition validation.
 │   └── admin/
-│       └── Panel.jsx        4 stat cards + users table + restaurants grid.
+│       └── Panel.jsx        4 stat cards + users table + restaurants grid. Uses orders service.
 │
-├── App.jsx                  Route definitions. Provider nesting.
+├── App.jsx                  Route definitions. RoleRoute checks per role.
 ├── main.jsx                 ReactDOM.createRoot + BrowserRouter.
 └── index.css                @import "tailwindcss"
 ```
@@ -113,88 +119,72 @@ All mock data lives in `src/data/mock.js`.
 
 **Prices:** In NPR (Rs). Realistic values (Margherita Pizza Rs 169, Classic Burger Rs 130, etc.).
 
-**Auth flow:** `mockLogin` and `mockRegister` are synchronous functions that simulate API behavior. New registrations push into the in-memory `MOCK_USERS` array. Tokens are strings like `'mock-jwt-' + Date.now()` — not real JWTs.
+**Auth flow:** `mockLogin` and `mockRegister` are synchronous functions that simulate API behavior. New registrations push into the in-memory `MOCK_USERS` array (resets on refresh). Tokens are strings like `'mock-jwt-' + Date.now()` — not real JWTs.
 
-**Cart + Orders:** Both stored in `localStorage`. Cart = `localStorage.cart`, Orders = `localStorage.orders`. This is the entire "database" — no persistence across browsers, no backend sync.
+**Cart + Orders:** Both stored in `localStorage` via `src/services/orders.js` and `src/utils/storage.js`.
 
 ---
 
 ## Data Flow Per Role
 
 ### Customer
-
 1. Opens app -> redirected to `/login`
-2. Logs in with test account -> lands on `/` (restaurant list)
-3. Clicks a restaurant -> `/restaurant/:id` (menu)
-4. Clicks "Add to Cart" -> item saved to `localStorage.cart`, toast shown
-5. Goes to `/cart` -> adjusts qtys, sees total
-6. Goes to `/checkout` -> enters address, selects payment method, places order
-7. Order saved to `localStorage.orders`, cart cleared, redirected to `/orders`
-8. OrderTracking shows 5-step progress bar (Pending -> Confirmed -> Preparing -> Out for Delivery -> Delivered)
+2. Logs in -> lands on `/` (restaurant list)
+3. Clicks restaurant -> `/restaurant/:id` (menu) -> "Add to Cart"
+4. `/cart` -> adjust qtys, see total
+5. `/checkout` -> enter address, place order
+6. `/orders` -> 5-step progress bar
 
 ### Owner
-
-1. Logs in as owner@test.com -> navbar shows Dashboard/Menu/Orders links
-2. **Dashboard** (`/owner`): stats cards + list of pending orders for their restaurant
-3. **Menu** (`/owner/menu`): view menu items + add new items via inline form
-4. **Orders** (`/owner/orders`): all orders for their restaurant. Each order has a "Mark [next status]" button. Flow: Pending -> Confirmed -> Preparing -> Ready for Pickup
+1. Logs in as `owner@test.com` -> navbar: Dashboard/Menu/Orders
+2. `/owner` -> stats + pending orders
+3. `/owner/menu` -> view/add items
+4. `/owner/orders` -> advance through Pending -> Confirmed -> Preparing -> Ready for Pickup
 
 ### Rider
-
-1. Logs in as rider@test.com -> navbar shows "Deliveries"
-2. Dashboard (`/rider`): shows orders with status "Ready for Pickup" or "Out for Delivery"
-3. Clicks "Pick Up" -> status becomes "Out for Delivery"
-4. Clicks "Mark Delivered" -> status becomes "Delivered" -> order disappears from rider view
+1. Logs in as `rider@test.com` -> navbar: Deliveries
+2. `/rider` -> Ready for Pickup / Out for Delivery orders
+3. "Pick Up" -> Out for Delivery -> "Mark Delivered"
 
 ### Admin
+1. Logs in as `admin@test.com` -> navbar: Panel
+2. `/admin` -> stats + users table + restaurant cards
 
-1. Logs in as admin@test.com -> navbar shows "Panel"
-2. Panel (`/admin`): 4 stat cards (users, restaurants, orders, revenue) + users table with role badges + restaurant cards
+---
+
+## Key Changes from Review
+
+| # | Issue | Fix |
+|---|---|---|
+| 1 | Raw `JSON.parse` crashes | `src/utils/storage.js` with try/catch wrappers. Used everywhere. |
+| 2 | Wrong-role users could access customer pages | `/cart`, `/checkout`, `/orders` now use `RoleRoute roles={['customer']}` |
+| 3 | Checkout called `navigate()` during render | Returns `<Navigate to="/cart" replace />` instead |
+| 4 | API URL hardcoded | `import.meta.env.VITE_API_URL \|\| 'http://localhost:5000/api'` |
+| 5 | 401 hard redirect | Kept for now (standard pattern without React Router access in interceptors) |
+| 6 | Owner/rider duplicate localStorage logic | `src/services/orders.js` with shared `getAllOrders`, `updateOrderStatus`, transition validation |
 
 ---
 
 ## Known Limitations (Honest)
 
-1. **No backend** — Auth uses mock functions in `mock.js`. Axios client points to `localhost:5000/api` but no server is running. If anyone calls `api.get(...)` it will fail with a network error.
-
-2. **Cart/Orders use localStorage** — Refresh the page and data persists. Clear localStorage and it's gone. No multi-device sync.
-
-3. **Mock data is in-memory** — `MOCK_USERS` resets on page refresh. Registering a new user works until refresh, then they disappear. The `MOCK_USERS` array is a `const` at module scope, not persisted.
-
-4. **No real payment** — Checkout simulates a 1.5s delay then saves the order. Shows the flow only.
-
-5. **No real maps** — Delivery address is a text field. No geolocation, no tracking map.
-
-6. **Search/filter** — No search bar on the restaurant list. No cuisine filter.
-
-7. **No pagination** — All data loads at once. Fine for 6 restaurants, not fine for 600.
-
-8. **Owner-restaurant linking** — Hardcoded via `ownerId` in `MOCK_RESTAURANTS`. Owner 2 owns restaurant 1. No UI for this.
-
-9. **No image uploads** — Menu items use emoji as placeholder images. Restaurant cards too.
-
-10. **No loading states on most pages** — `Home.jsx` has a `loading` variable but it's hardcoded to `false`. The skeleton loader is wired but never triggers because data is synchronous.
-
-11. **Form validation** — Minimal. Email format not validated. Password strength not checked.
-
-12. **Role route for customer** — Customer routes (`/`, `/cart`, etc.) use `ProtectedRoute` but don't check `role === 'customer'`. An owner visiting `/cart` would see it. This works for the prototype but isn't strict.
-
----
-
-## Design Decisions
-
-- **No external UI library** — Everything is custom Tailwind to keep dependencies minimal and show full control.
-- **Orange as brand color** — Food-appropriate, used for primary buttons and nav.
-- **Semantic status colors** — Yellow = pending, blue = in progress, green = done/success, red = error.
-- **Toasts over alerts** — `ToastContext` provides non-blocking feedback. Replaces the `alert()` calls from the first prototype.
-- **Empty states everywhere** — Every list page has a graceful empty state with icon + message + CTA instead of a blank screen.
-- **Mobile-first classes** — `sm:` and `lg:` prefixes on layout. Nav hides text labels on small screens.
+1. **No backend** — Auth uses mock functions. Axios client is configured but no server runs.
+2. **Cart/Orders localStorage** — Refresh persists. Clear localStorage = data gone. No sync.
+3. **Mock users reset on refresh** — `MOCK_USERS` is module-level `const`, registrations lost on page reload.
+4. **No real payment** — 1.5s simulated delay then saves the order.
+5. **No real maps** — Address is a text field.
+6. **No search/filter** — No search bar, cuisine filter, or sort on restaurant list.
+7. **No pagination** — All data loads at once.
+8. **Owner-restaurant linking** — Hardcoded via `ownerId`. No UI to manage this.
+9. **No image uploads** — Emoji placeholders only.
+10. **Loading states** — Wired but data is synchronous, so skeletons never trigger naturally.
+11. **Form validation** — Minimal. No email format or password strength checks.
+12. **No .env file** — `VITE_API_URL` fallback works but no `.env` file is committed.
 
 ---
 
 ## Next Steps (Backend)
 
-When building the Express backend, these endpoints are expected:
+Expected API contract when building the Express server:
 
 | Method | Endpoint | Request | Response |
 |---|---|---|---|
@@ -205,10 +195,8 @@ When building the Express backend, these endpoints are expected:
 | POST | `/api/orders` | `{ items, address, paymentMethod }` | `{ order }` |
 | GET | `/api/orders` | — | `[ ...orders ]` |
 | PATCH | `/api/orders/:id/status` | `{ status }` | `{ order }` |
-| GET | `/api/owner/orders` | — | `[ ...orders ]` (filtered) |
+| GET | `/api/owner/orders` | — | `[ ...orders ]` |
 | PATCH | `/api/owner/menu` | `{ name, price, desc }` | `{ item }` |
-
-The `AuthContext` is already wired to call these endpoints. Swap the mock functions in `AuthContext.jsx` with real `api.post(...)` calls. The Login/Register pages use `async/await` with try/catch — they'll work as-is.
 
 ---
 

@@ -1,31 +1,28 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 import { mockLogin, mockRegister } from '../data/mock'
+import { readJson, writeJson, removeKeys } from '../utils/storage'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem('user')
-    return stored ? JSON.parse(stored) : null
-  })
+  const [user, setUser] = useState(() => readJson('user'))
 
   const login = useCallback(async (email, password) => {
     const { token, user } = mockLogin(email, password)
-    localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(user))
+    writeJson('token', token)
+    writeJson('user', user)
     setUser(user)
   }, [])
 
   const register = useCallback(async (name, email, password) => {
     const { token, user } = mockRegister(name, email, password)
-    localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(user))
+    writeJson('token', token)
+    writeJson('user', user)
     setUser(user)
   }, [])
 
   const logout = useCallback(() => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    removeKeys('token', 'user')
     setUser(null)
   }, [])
 

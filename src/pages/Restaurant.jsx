@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { MOCK_RESTAURANTS, MENUS, formatPrice } from '../data/mock'
+import { getCart, saveCart } from '../services/orders'
 import EmptyState from '../components/EmptyState'
 
 export default function Restaurant() {
@@ -14,14 +15,14 @@ export default function Restaurant() {
 
   const addToCart = (item) => {
     if (!user) return showToast('Please login first', 'error')
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+    const cart = getCart()
     const existing = cart.find(c => c.id === item.id && c.restaurantId === Number(id))
     if (existing) {
       existing.qty += 1
     } else {
       cart.push({ ...item, restaurantId: Number(id), restaurantName: restaurant?.name, qty: 1 })
     }
-    localStorage.setItem('cart', JSON.stringify(cart))
+    saveCart(cart)
     showToast(`${item.name} added to cart`, 'success')
   }
 

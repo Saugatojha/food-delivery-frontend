@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { formatPrice } from '../data/mock'
+import { getAllOrders, STATUS_FLOWS, getNextStatus } from '../services/orders'
 import EmptyState from '../components/EmptyState'
 
-const STEPS = ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered']
+const STEPS = STATUS_FLOWS.customer
 
 export default function OrderTracking() {
   const [orders, setOrders] = useState([])
 
   useEffect(() => {
-    setOrders(JSON.parse(localStorage.getItem('orders') || '[]'))
+    setOrders(getAllOrders())
   }, [])
 
   if (orders.length === 0) {

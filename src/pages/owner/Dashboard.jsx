@@ -1,13 +1,11 @@
 import { useAuth } from '../../context/AuthContext'
-import { MOCK_RESTAURANTS } from '../../data/mock'
-import { formatPrice } from '../../data/mock'
+import { MOCK_RESTAURANTS, formatPrice } from '../../data/mock'
+import { getOrdersForRestaurant } from '../../services/orders'
 
 export default function OwnerDashboard() {
   const { user } = useAuth()
   const restaurant = MOCK_RESTAURANTS.find(r => r.ownerId === user.id)
-  const orders = JSON.parse(localStorage.getItem('orders') || '[]').filter(o =>
-    o.items.some(i => i.restaurantId === restaurant?.id)
-  )
+  const orders = restaurant ? getOrdersForRestaurant(restaurant.id) : []
   const pendingOrders = orders.filter(o => o.status === 'Pending' || o.status === 'Confirmed')
 
   if (!restaurant) {

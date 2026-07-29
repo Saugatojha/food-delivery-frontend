@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, calcTotal } from '../data/mock'
+import { getCart, saveCart } from '../services/orders'
 import EmptyState from '../components/EmptyState'
 
 export default function Cart() {
@@ -9,19 +10,19 @@ export default function Cart() {
   const { showToast } = useToast()
 
   useEffect(() => {
-    setCart(JSON.parse(localStorage.getItem('cart') || '[]'))
+    setCart(getCart())
   }, [])
 
   const updateQty = (id, delta) => {
     const updated = cart.map(c => c.id === id ? { ...c, qty: Math.max(1, c.qty + delta) } : c)
     setCart(updated)
-    localStorage.setItem('cart', JSON.stringify(updated))
+    saveCart(updated)
   }
 
   const remove = (id) => {
     const updated = cart.filter(c => c.id !== id)
     setCart(updated)
-    localStorage.setItem('cart', JSON.stringify(updated))
+    saveCart(updated)
     showToast('Item removed', 'info')
   }
 

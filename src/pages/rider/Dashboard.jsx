@@ -2,40 +2,32 @@ import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { formatPrice } from '../../data/mock'
+import {
+  getAvailableDeliveries,
+  updateOrderStatus,
+  getAllOrders,
+  STATUS_FLOWS,
+  getNextStatus,
+  isValidTransition,
+} from '../../services/orders'
 import EmptyState from '../../components/EmptyState'
 
-const RIDER_FLOW = ['Ready for Pickup', 'Out for Delivery', 'Delivered']
+const FLOW = STATUS_FLOWS.rider
 
 export default function RiderDashboard() {
   const { user } = useAuth()
   const { showToast } = useToast()
-  const [orders, setOrders] = useState(
-    JSON.parse(localStorage.getItem('orders') || '[]').filter(
-      o => o.status === 'Ready for Pickup' || o.status === 'Out for Delivery'
-    )
-  )
+  const [orders, setOrders] = useState(getAvailableDeliveries())
 
-  const updateStatus = (orderId, newStatus) => {
-    const updated = orders.map(o => {
-      if (o.id === orderId) {
-        const changed = { ...o, status: newStatus }
-        const allOrders = JSON.parse(localStorage.getItem('orders') || '[]')
-        const idx = allOrders.findIndex(a => a.id === orderId)
-        if (idx !== -1) {
-          allOrders[idx] = changed
-          localStorage.setItem('orders', JSON.stringify(allOrders))
-        }
-        return changed
-      }
-      return o
-    })
-    setOrders(updated.filter(o => o.status === 'Ready for Pickup' || o.status === 'Out for Delivery'))
-    showToast(`Order #${orderId} → ${newStatus}`, 'success')
-  }
-
-  const nextStatus = (current) => {
-    const idx = RIDER_FLOW.indexOf(current)
-    return idx < RIDER_FLOW.length - 1 ? RIDER_FLOW[idx + 1] : null
+  const advanceOrder = (order) => {
+    const next = getNextStatus(order.status, FLOW)
+    if (!next) return
+    if (!isValidTransition(order.status, next, FLOW)) {
+      return showToast('Invalid status transition', 'error')
+    }
+    updateOrderStatus(order.id, next)
+    setOrders(getAvailableDeliveries())
+    showToast(`Order #${order.id} → ${next}`, 'success')
   }
 
   if (orders.length === 0) {
@@ -47,7 +39,7 @@ export default function RiderDashboard() {
       <h1 className="text-2xl font-bold mb-6">Rider Dashboard</h1>
       <p className="text-sm text-gray-500 mb-4">Welcome, {user?.name}</p>
       {orders.toReversed().map(order => {
-        const next = nextStatus(order.status)
+        const next = getNextStatus(order.status, FLOW)
         return (
           <div key={order.id} className="border rounded-lg p-4 mb-3">
             <div className="flex justify-between items-start">
@@ -64,7 +56,7 @@ export default function RiderDashboard() {
                   {order.status}
                 </span>
                 {next && (
-                  <button onClick={() => updateStatus(order.id, next)} className="block mt-2 bg-green-600 text-white px-3 py-1 rounded text-xs">
+                  <button onClick={() => advanceOrder(order)} className="block mt-2 bg-green-600 text-white px-3 py-1 rounded text-xs">
                     {next === 'Out for Delivery' ? 'Pick Up' : 'Mark Delivered'}
                   </button>
                 )}

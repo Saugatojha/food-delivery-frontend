@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, calcTotal } from '../data/mock'
+import { getCart, saveCart, saveOrder } from '../services/orders'
 
 export default function Checkout() {
   const navigate = useNavigate()
@@ -10,15 +11,19 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [placing, setPlacing] = useState(false)
 
-  const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+  const cart = getCart()
   const total = calcTotal(cart)
+
+  if (cart.length === 0) {
+    return <Navigate to="/cart" replace />
+  }
 
   const placeOrder = () => {
     if (!address.trim()) return showToast('Enter a delivery address', 'error')
+    if (placing) return
     setPlacing(true)
     setTimeout(() => {
-      const orders = JSON.parse(localStorage.getItem('orders') || '[]')
-      const order = {
+      saveOrder({
         id: Date.now(),
         items: [...cart],
         total,
@@ -27,18 +32,11 @@ export default function Checkout() {
         status: 'Pending',
         deliveryEta: '30-40 min',
         date: new Date().toISOString(),
-      }
-      orders.push(order)
-      localStorage.setItem('orders', JSON.stringify(orders))
-      localStorage.setItem('cart', '[]')
+      })
+      saveCart([])
       showToast('Order placed successfully!', 'success')
       navigate('/orders')
     }, 1500)
-  }
-
-  if (cart.length === 0) {
-    navigate('/cart')
-    return null
   }
 
   return (
