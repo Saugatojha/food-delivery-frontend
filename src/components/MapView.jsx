@@ -25,6 +25,27 @@ const riderIcon = L.divIcon({
   iconAnchor: [14, 14],
 })
 
+let tileErrorShown = false
+
+function TileErrorFallback() {
+  const map = useMap()
+  useEffect(() => {
+    if (typeof map.getContainer !== 'function') return
+    const container = map.getContainer()
+    const onError = () => {
+      if (tileErrorShown) return
+      tileErrorShown = true
+      const el = document.createElement('div')
+      el.className = 'absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-500 text-sm p-4 text-center z-[2000]'
+      el.innerText = 'Map tiles unavailable. Check your internet connection and try again.'
+      container.parentElement?.appendChild(el)
+    }
+    map.on('tileerror', onError)
+    return () => { map.off('tileerror', onError) }
+  }, [map])
+  return null
+}
+
 function ClickHandler({ onClick }) {
   useMapEvents({
     click(e) {
@@ -54,6 +75,7 @@ export default function MapView({
   onClick,
   height = '300px',
   interactive = true,
+  showRouteNote = false,
 }) {
   const restaurantPos = restaurant ? [restaurant.latitude, restaurant.longitude] : null
   const deliveryPos = delivery ? [delivery.latitude, delivery.longitude] : null
@@ -63,12 +85,13 @@ export default function MapView({
   const bounds = [restaurantPos, deliveryPos, riderPos].filter(Boolean)
 
   return (
-    <div style={{ height, width: '100%' }} className="rounded-lg overflow-hidden border">
+    <div style={{ height, width: '100%' }} className="rounded-lg overflow-hidden border relative">
       <MapContainer center={center} zoom={zoom} style={{ height: '100%', width: '100%' }} dragging={interactive} scrollWheelZoom={interactive} doubleClickZoom={interactive}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <TileErrorFallback />
         <FitBounds bounds={bounds} />
         {onClick && <ClickHandler onClick={onClick} />}
         {restaurantPos && <Marker position={restaurantPos} icon={restaurantIcon} />}
@@ -78,6 +101,11 @@ export default function MapView({
           <Polyline positions={routePoints} pathOptions={{ color: '#f97316', weight: 2, dashArray: '8, 6' }} />
         )}
       </MapContainer>
+      {showRouteNote && routePoints.length === 2 && (
+        <div className="absolute bottom-1 left-1 bg-white/80 text-[10px] text-gray-500 px-1.5 py-0.5 rounded z-[1000]">
+          Route line is approximate (straight-line)
+        </div>
+      )}
     </div>
   )
 }

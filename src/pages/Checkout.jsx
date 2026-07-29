@@ -12,6 +12,7 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [placing, setPlacing] = useState(false)
   const [deliveryPos, setDeliveryPos] = useState(null)
+  const [locating, setLocating] = useState(false)
 
   const cart = getCart()
   const total = calcTotal(cart)
@@ -23,6 +24,23 @@ export default function Checkout() {
   }
 
   const handleMapClick = (latlng) => { setDeliveryPos(latlng) }
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) return showToast('Geolocation not supported', 'error')
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setDeliveryPos({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setLocating(false)
+        showToast('Location detected', 'success')
+      },
+      () => {
+        setLocating(false)
+        showToast('Could not detect location', 'error')
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   const placeOrder = async () => {
     if (!address.trim()) return showToast('Enter a delivery address', 'error')
@@ -58,7 +76,12 @@ export default function Checkout() {
       </div>
 
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Choose delivery location on map</label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700">Choose delivery location on map</label>
+          <button onClick={useCurrentLocation} disabled={locating} className="text-xs bg-gray-100 hover:bg-gray-200 border px-2 py-1 rounded disabled:opacity-50">
+            {locating ? 'Detecting...' : 'Use current location'}
+          </button>
+        </div>
         <MapView
           center={[restaurant.latitude, restaurant.longitude]}
           zoom={14}
@@ -66,9 +89,12 @@ export default function Checkout() {
           delivery={deliveryPos ? { latitude: deliveryPos.lat, longitude: deliveryPos.lng } : null}
           onClick={handleMapClick}
           height="280px"
+          showRouteNote
         />
-        {deliveryPos && (
-          <p className="text-xs text-gray-500 mt-1">Location selected: {deliveryPos.lat.toFixed(4)}, {deliveryPos.lng.toFixed(4)}</p>
+        {deliveryPos ? (
+          <p className="text-xs text-green-600 font-medium mt-1">Delivery location set: {deliveryPos.lat.toFixed(4)}, {deliveryPos.lng.toFixed(4)}</p>
+        ) : (
+          <p className="text-xs text-gray-400 mt-1">Click on the map to set delivery location (or use current location)</p>
         )}
       </div>
 

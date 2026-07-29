@@ -1,6 +1,7 @@
 const express = require('express')
 const prisma = require('../config/database')
 const { authenticate, authorize } = require('../middleware/auth')
+const { serverError } = require('../utils/errors')
 
 const router = express.Router()
 
@@ -16,7 +17,7 @@ router.get('/stats', async (req, res) => {
     const revenueAgg = await prisma.order.aggregate({ _sum: { total: true } })
     res.json({ users, restaurants, orders, revenue: revenueAgg._sum.total || 0 })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch stats' })
+    serverError(res, 'Failed to fetch stats')
   }
 })
 
@@ -28,7 +29,7 @@ router.get('/users', async (req, res) => {
     })
     res.json(users)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch users' })
+    serverError(res, 'Failed to fetch users')
   }
 })
 
@@ -37,7 +38,7 @@ router.get('/restaurants', async (req, res) => {
     const restaurants = await prisma.restaurant.findMany({ orderBy: { name: 'asc' } })
     res.json(restaurants)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch restaurants' })
+    serverError(res, 'Failed to fetch restaurants')
   }
 })
 

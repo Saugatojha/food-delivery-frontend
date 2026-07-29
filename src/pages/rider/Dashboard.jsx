@@ -114,6 +114,7 @@ export default function RiderDashboard() {
                   rider={riderLocation}
                   interactive={false}
                   height="180px"
+                  showRouteNote
                 />
               </div>
             )}

@@ -65,11 +65,16 @@ server/ (port 5000)
     │   ├── owner.js             GET /orders, GET /menu, POST /menu, PATCH /menu/:id, DELETE /menu/:id
     │   ├── rider.js             GET /deliveries, PATCH /location
     │   └── admin.js             GET /stats, GET /users, GET /restaurants
+    ├── middleware/
+    │   ├── auth.js              authenticate (JWT verify) + authorize (role check)
+    │   └── validate.js          validate() / validateOptional() field checkers
     └── utils/
-        └── statusFlow.js        Role-based status transition validation
+        ├── statusFlow.js        Role-based status transition validation
+        └── errors.js            Consistent error response helpers (badRequest, notFound, etc.)
   prisma/
     ├── schema.prisma            9 models (User, Restaurant, MenuItem, Order, OrderItem, Payment, Delivery, Rating)
     ├── seed.js                  Seeds 4 users, 6 restaurants (with lat/lng), 18 menu items
+    ├── reset.js                 Deletes dev.db, re-runs migrations, re-seeds
     └── migrations/              SQLite migration files
 ```
 
@@ -264,7 +269,7 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 7. **No image uploads** — Text-based placeholders.
 8. **Form validation** — Minimal. No email format or password strength checks.
 9. **Owner-restaurant linking** — Hardcoded via `ownerId`. No UI to manage this.
-10. **Test coverage** — 41 frontend tests. No backend tests yet.
+10. **Test coverage** — 43 backend tests + 41 frontend tests = 84 total.
 
 ---
 
@@ -275,6 +280,10 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 ```bash
 cd server
 npm run dev          # Dev server with nodemon on port 5000
+npm run test         # Vitest (43 tests)
+npm run seed         # Re-run seed data
+npm run reset        # Delete dev.db, re-run migrations, re-seed
+npm run migrate      # Run prisma migrate dev
 ```
 
 ### Frontend
@@ -287,14 +296,17 @@ npm run lint         # ESLint check
 npm run test         # Vitest (41 tests)
 ```
 
-### Full Stack
+### Running Tests
 
 ```bash
-# Terminal 1
-cd server && npm run dev
+# Frontend tests (from repo root)
+npm run test
 
-# Terminal 2
-npm run dev
+# Backend tests
+cd server && npx vitest run
+
+# Both
+cd server && npx vitest run && cd .. && npm run test
 ```
 
 The frontend Axios client defaults to `http://localhost:5000/api`. Set `VITE_API_URL` in `.env` to override.

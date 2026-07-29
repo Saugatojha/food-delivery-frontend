@@ -1,30 +1,27 @@
 const express = require('express')
 const prisma = require('../config/database')
 const { authenticate } = require('../middleware/auth')
-const { isValidTransition, getNextStatus, FLOWS, TERMINAL_STATUSES } = require('../utils/statusFlow')
+const { isValidTransition, TERMINAL_STATUSES } = require('../utils/statusFlow')
+const { badRequest, notFound, forbidden, serverError } = require('../utils/errors')
+const { validate } = require('../middleware/validate')
 
 const router = express.Router()
 
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, validate('address'), async (req, res) => {
   try {
     const { items, address, paymentMethod, deliveryLatitude, deliveryLongitude } = req.body
-    if (!items || !items.length || !address) {
-      return res.status(400).json({ error: 'Items and address required' })
-    }
+    if (!items || !items.length) return badRequest(res, 'Items required')
 
     const restaurantId = items[0].restaurantId
     const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } })
-    if (!restaurant || !restaurant.isOpen) {
-      return res.status(400).json({ error: 'Restaurant is closed or not found' })
-    }
+    if (!restaurant || !restaurant.isOpen) return badRequest(res, 'Restaurant is closed or not found')
 
     let total = 0
     const orderItems = []
     for (const item of items) {
       const menuItem = await prisma.menuItem.findUnique({ where: { id: item.menuItemId } })
-      if (!menuItem) return res.status(400).json({ error: `Menu item ${item.menuItemId} not found` })
-      const lineTotal = menuItem.price * item.quantity
-      total += lineTotal
+      if (!menuItem) return badRequest(res, `Menu item ${item.menuItemId} not found`)
+      total += menuItem.price * item.quantity
       orderItems.push({ menuItemId: menuItem.id, quantity: item.quantity, price: menuItem.price })
     }
 
@@ -47,7 +44,7 @@ router.post('/', authenticate, async (req, res) => {
 
     res.status(201).json(order)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create order' })
+    serverError(res, 'Failed to create order')
   }
 })
 
@@ -60,7 +57,7 @@ router.get('/', authenticate, async (req, res) => {
     })
     res.json(orders)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch orders' })
+    serverError(res, 'Failed to fetch orders')
   }
 })
 
@@ -74,32 +71,31 @@ router.get('/tracking/:id', authenticate, async (req, res) => {
         delivery: { select: { riderLatitude: true, riderLongitude: true, locationUpdatedAt: true } },
       },
     })
-    if (!order) return res.status(404).json({ error: 'Order not found' })
+    if (!order) return notFound(res, 'Order not found')
     if (order.userId !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Not your order' })
+      return forbidden(res, 'Not your order')
     }
     res.json(order)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch tracking' })
+    serverError(res, 'Failed to fetch tracking')
   }
 })
 
-router.patch('/:id/status', authenticate, async (req, res) => {
+router.patch('/:id/status', authenticate, validate('status'), async (req, res) => {
   try {
     const { status } = req.body
-    if (!status) return res.status(400).json({ error: 'Status required' })
 
     const order = await prisma.order.findUnique({ where: { id: Number(req.params.id) } })
-    if (!order) return res.status(404).json({ error: 'Order not found' })
+    if (!order) return notFound(res, 'Order not found')
 
     const current = order.status
     if (TERMINAL_STATUSES.includes(current)) {
-      return res.status(400).json({ error: 'Cannot update a terminal order' })
+      return badRequest(res, 'Cannot update a terminal order')
     }
 
     const role = req.user.role
     if (!isValidTransition(current, status, role)) {
-      return res.status(403).json({ error: `Invalid transition from ${current} to ${status} for role ${role}` })
+      return forbidden(res, `Invalid transition from ${current} to ${status} for role ${role}`)
     }
 
     const updated = await prisma.order.update({
@@ -110,7 +106,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
 
     res.json(updated)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update status' })
+    serverError(res, 'Failed to update status')
   }
 })
 

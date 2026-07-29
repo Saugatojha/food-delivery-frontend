@@ -1,15 +1,27 @@
 const express = require('express')
 const prisma = require('../config/database')
 const { authenticate, authorize } = require('../middleware/auth')
+const { notFound, serverError } = require('../utils/errors')
+const { validate } = require('../middleware/validate')
 
 const router = express.Router()
 
 router.use(authenticate, authorize('owner'))
 
+async function getRestaurant(userId) {
+  return prisma.restaurant.findUnique({ where: { ownerId: userId } })
+}
+
+async function requireRestaurant(userId, res) {
+  const r = await getRestaurant(userId)
+  if (!r) notFound(res, 'No restaurant linked')
+  return r
+}
+
 router.get('/orders', async (req, res) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { ownerId: req.user.id } })
-    if (!restaurant) return res.status(404).json({ error: 'No restaurant linked' })
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
 
     const orders = await prisma.order.findMany({
       where: { restaurantId: restaurant.id },
@@ -18,14 +30,14 @@ router.get('/orders', async (req, res) => {
     })
     res.json(orders)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch orders' })
+    serverError(res, 'Failed to fetch orders')
   }
 })
 
 router.get('/menu', async (req, res) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { ownerId: req.user.id } })
-    if (!restaurant) return res.status(404).json({ error: 'No restaurant linked' })
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
 
     const items = await prisma.menuItem.findMany({
       where: { restaurantId: restaurant.id },
@@ -33,37 +45,35 @@ router.get('/menu', async (req, res) => {
     })
     res.json(items)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch menu' })
+    serverError(res, 'Failed to fetch menu')
   }
 })
 
-router.post('/menu', async (req, res) => {
+router.post('/menu', validate('name', 'price'), async (req, res) => {
   try {
     const { name, price, desc } = req.body
-    if (!name || !price) return res.status(400).json({ error: 'Name and price required' })
-
-    const restaurant = await prisma.restaurant.findUnique({ where: { ownerId: req.user.id } })
-    if (!restaurant) return res.status(404).json({ error: 'No restaurant linked' })
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
 
     const item = await prisma.menuItem.create({
       data: { restaurantId: restaurant.id, name, price: Number(price), desc },
     })
     res.status(201).json(item)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to add menu item' })
+    serverError(res, 'Failed to add menu item')
   }
 })
 
 router.patch('/menu/:id', async (req, res) => {
   try {
     const { name, price, desc } = req.body
-    const restaurant = await prisma.restaurant.findUnique({ where: { ownerId: req.user.id } })
-    if (!restaurant) return res.status(404).json({ error: 'No restaurant linked' })
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
 
     const item = await prisma.menuItem.findFirst({
       where: { id: Number(req.params.id), restaurantId: restaurant.id },
     })
-    if (!item) return res.status(404).json({ error: 'Menu item not found' })
+    if (!item) return notFound(res, 'Menu item not found')
 
     const updated = await prisma.menuItem.update({
       where: { id: item.id },
@@ -71,24 +81,24 @@ router.patch('/menu/:id', async (req, res) => {
     })
     res.json(updated)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update menu item' })
+    serverError(res, 'Failed to update menu item')
   }
 })
 
 router.delete('/menu/:id', async (req, res) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { ownerId: req.user.id } })
-    if (!restaurant) return res.status(404).json({ error: 'No restaurant linked' })
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
 
     const item = await prisma.menuItem.findFirst({
       where: { id: Number(req.params.id), restaurantId: restaurant.id },
     })
-    if (!item) return res.status(404).json({ error: 'Menu item not found' })
+    if (!item) return notFound(res, 'Menu item not found')
 
     await prisma.menuItem.delete({ where: { id: item.id } })
     res.json({ message: 'Menu item deleted' })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete menu item' })
+    serverError(res, 'Failed to delete menu item')
   }
 })
 

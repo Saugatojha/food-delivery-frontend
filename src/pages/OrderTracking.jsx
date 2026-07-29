@@ -76,6 +76,7 @@ export default function OrderTracking() {
                   rider={rider}
                   interactive={false}
                   height="200px"
+                  showRouteNote
                 />
               </div>
             )}
