@@ -3,7 +3,8 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import app from '../index'
 
 describe('POST /api/auth/register', () => {
-  const newUser = { name: 'Test User', email: `test${Date.now()}@test.com`, password: 'secret123' }
+  const ts = Date.now()
+  const newUser = { name: `Test User ${ts}`, email: `test${ts}@test.com`, password: 'secret123' }
 
   it('registers a new user', async () => {
     const res = await request(app).post('/api/auth/register').send(newUser)
@@ -29,26 +30,26 @@ describe('POST /api/auth/register', () => {
 
 describe('POST /api/auth/login', () => {
   it('logs in with valid credentials', async () => {
-    const res = await request(app).post('/api/auth/login').send({ email: 'john@test.com', password: 'password' })
+    const res = await request(app).post('/api/auth/login').send({ login: 'john@test.com', password: 'password' })
     expect(res.status).toBe(200)
     expect(res.body.token).toBeTruthy()
     expect(res.body.user.email).toBe('john@test.com')
   })
 
   it('rejects wrong password', async () => {
-    const res = await request(app).post('/api/auth/login').send({ email: 'john@test.com', password: 'wrong' })
+    const res = await request(app).post('/api/auth/login').send({ login: 'john@test.com', password: 'wrong' })
     expect(res.status).toBe(401)
   })
 
   it('rejects unknown email', async () => {
-    const res = await request(app).post('/api/auth/login').send({ email: 'noone@test.com', password: 'x' })
+    const res = await request(app).post('/api/auth/login').send({ login: 'noone@test.com', password: 'x' })
     expect(res.status).toBe(401)
   })
 })
 
 describe('GET /api/auth/me', () => {
   it('returns user when authenticated', async () => {
-    const login = await request(app).post('/api/auth/login').send({ email: 'john@test.com', password: 'password' })
+    const login = await request(app).post('/api/auth/login').send({ login: 'john@test.com', password: 'password' })
     const res = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${login.body.token}`)
     expect(res.status).toBe(200)
     expect(res.body.user.email).toBe('john@test.com')

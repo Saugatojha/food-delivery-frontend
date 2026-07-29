@@ -7,8 +7,8 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => readJson('user'))
 
-  const login = useCallback(async (email, password) => {
-    const { data } = await api.post('/auth/login', { email: email.trim().toLowerCase(), password })
+  const login = useCallback(async (loginValue, password) => {
+    const { data } = await api.post('/auth/login', { login: loginValue.trim(), password })
     writeJson('token', data.token)
     writeJson('user', data.user)
     setUser(data.user)

@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 import app from '../index'
 
 async function getToken(email) {
-  const res = await request(app).post('/api/auth/login').send({ email, password: 'password' })
+  const res = await request(app).post('/api/auth/login').send({ login: email, password: 'password' })
   return res.body.token
 }
 

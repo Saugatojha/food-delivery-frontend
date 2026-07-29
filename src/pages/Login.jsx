@@ -3,20 +3,17 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
 export default function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const { showToast } = useToast()
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ login: '', password: '' })
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
 
   const validate = () => {
     const e = {}
-    if (!form.email.trim()) e.email = 'Email is required'
-    else if (!EMAIL_RE.test(form.email)) e.email = 'Invalid email format'
+    if (!form.login.trim()) e.login = 'Email or username is required'
     if (!form.password) e.password = 'Password is required'
     else if (form.password.length < 4) e.password = 'Min 4 characters'
     setErrors(e)
@@ -28,11 +25,11 @@ export default function Login() {
     if (!validate()) return
     setLoading(true)
     try {
-      await login(form.email, form.password)
+      await login(form.login, form.password)
       showToast('Welcome back!', 'success')
       navigate('/')
     } catch {
-      showToast('Invalid email or password', 'error')
+      showToast('Invalid email/username or password', 'error')
     } finally {
       setLoading(false)
     }
@@ -43,8 +40,8 @@ export default function Login() {
       <h1 className="text-2xl font-bold mb-6">Login</h1>
       <form onSubmit={handleSubmit} className="grid gap-4">
         <div>
-          <input className={`border p-2 rounded w-full ${errors.email ? 'border-red-400' : ''}`} type="email" placeholder="Email" value={form.email} onChange={e => { setForm(p => ({ ...p, email: e.target.value })); setErrors(p => ({ ...p, email: '' })) }} />
-          {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+          <input className={`border p-2 rounded w-full ${errors.login ? 'border-red-400' : ''}`} type="text" placeholder="Email or username" value={form.login} onChange={e => { setForm(p => ({ ...p, login: e.target.value })); setErrors(p => ({ ...p, login: '' })) }} />
+          {errors.login && <p className="text-red-500 text-xs mt-1">{errors.login}</p>}
         </div>
         <div>
           <input className={`border p-2 rounded w-full ${errors.password ? 'border-red-400' : ''}`} type="password" placeholder="Password" value={form.password} onChange={e => { setForm(p => ({ ...p, password: e.target.value })); setErrors(p => ({ ...p, password: '' })) }} />
