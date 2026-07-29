@@ -1,5 +1,3 @@
-const delay = (ms = 600) => new Promise(r => setTimeout(r, ms))
-
 export const MOCK_USERS = [
   { id: 1, name: 'John Doe', email: 'john@test.com', password: 'password', role: 'customer' },
   { id: 2, name: 'Pizza Palace', email: 'owner@test.com', password: 'password', role: 'owner', restaurantId: 1 },
@@ -43,10 +41,6 @@ export function mockRegister(name, email, password, role = 'customer') {
 
 export function mockGetRestaurants() {
   return MOCK_RESTAURANTS
-}
-
-export function mockGetMenu(restaurantId) {
-  return MENUS[restaurantId] || []
 }
 
 export function formatPrice(n) {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { MOCK_RESTAURANTS, mockGetRestaurants } from '../data/mock'
+import { mockGetRestaurants } from '../data/mock'
 import { ListSkeleton } from '../components/LoadingSkeleton'
 import EmptyState from '../components/EmptyState'
 

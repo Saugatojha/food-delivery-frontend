@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, calcTotal } from '../data/mock'
@@ -6,12 +6,8 @@ import { getCart, saveCart } from '../services/orders'
 import EmptyState from '../components/EmptyState'
 
 export default function Cart() {
-  const [cart, setCart] = useState([])
+  const [cart, setCart] = useState(getCart())
   const { showToast } = useToast()
-
-  useEffect(() => {
-    setCart(getCart())
-  }, [])
 
   const updateQty = (id, delta) => {
     const updated = cart.map(c => c.id === id ? { ...c, qty: Math.max(1, c.qty + delta) } : c)

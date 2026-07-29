@@ -1,17 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatPrice } from '../data/mock'
-import { getAllOrders, STATUS_FLOWS, getNextStatus } from '../services/orders'
+import { getAllOrders, STATUS_FLOWS } from '../services/orders'
 import EmptyState from '../components/EmptyState'
 
 const STEPS = STATUS_FLOWS.customer
 
 export default function OrderTracking() {
-  const [orders, setOrders] = useState([])
-
-  useEffect(() => {
-    setOrders(getAllOrders())
-  }, [])
+  const [orders] = useState(getAllOrders())
 
   if (orders.length === 0) {
     return <EmptyState icon="📋" title="No orders yet" message="Place your first order to see it here" action={<Link to="/" className="bg-orange-500 text-white px-4 py-2 rounded inline-block">Browse restaurants</Link>} />

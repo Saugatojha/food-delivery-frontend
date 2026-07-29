@@ -5,7 +5,6 @@ import { formatPrice } from '../../data/mock'
 import {
   getAvailableDeliveries,
   updateOrderStatus,
-  getAllOrders,
   STATUS_FLOWS,
   getNextStatus,
   isValidTransition,
