@@ -6,10 +6,8 @@ const { unauthorized, forbidden } = require('../utils/errors')
 async function authenticate(req, res, next) {
   try {
     const header = req.headers.authorization
-    if (!header || !header.startsWith('Bearer ')) {
-      return unauthorized(res, 'No token provided')
-    }
-    const token = header.split(' ')[1]
+    const token = header?.startsWith('Bearer ') ? header.split(' ')[1] : req.cookies?.token
+    if (!token) return unauthorized(res, 'No token provided')
     const decoded = jwt.verify(token, jwtSecret)
     const user = await prisma.user.findUnique({ where: { id: decoded.id } })
     if (!user) return unauthorized(res, 'User not found')

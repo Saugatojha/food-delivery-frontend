@@ -9,6 +9,15 @@ const { validate } = require('../middleware/validate')
 
 const router = express.Router()
 
+function setTokenCookie(res, token) {
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 2 * 60 * 60 * 1000,
+  })
+}
+
 router.post('/register', validate('name', 'email', 'password'), async (req, res) => {
   try {
     const name = req.body.name.trim()
@@ -27,6 +36,7 @@ router.post('/register', validate('name', 'email', 'password'), async (req, res)
     })
 
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
+    setTokenCookie(res, token)
     res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId } })
   } catch (err) {
     serverError(res, 'Registration failed')
@@ -50,6 +60,7 @@ router.post('/login', validate('login', 'password'), async (req, res) => {
     if (!valid) return unauthorized(res, 'Invalid email/username or password')
 
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
+    setTokenCookie(res, token)
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId } })
   } catch (err) {
     serverError(res, 'Login failed')
@@ -58,6 +69,11 @@ router.post('/login', validate('login', 'password'), async (req, res) => {
 
 router.get('/me', authenticate, async (req, res) => {
   res.json({ user: req.user })
+})
+
+router.post('/logout', (req, res) => {
+  res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' })
+  res.json({ message: 'Logged out' })
 })
 
 module.exports = router
