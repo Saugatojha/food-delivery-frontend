@@ -11,7 +11,9 @@ const router = express.Router()
 
 router.post('/register', validate('name', 'email', 'password'), async (req, res) => {
   try {
-    const { name, email, password } = req.body
+    const name = req.body.name.trim()
+    const email = req.body.email.trim().toLowerCase()
+    const password = req.body.password
 
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) return conflict(res, 'Email already registered')
@@ -30,7 +32,8 @@ router.post('/register', validate('name', 'email', 'password'), async (req, res)
 
 router.post('/login', validate('email', 'password'), async (req, res) => {
   try {
-    const { email, password } = req.body
+    const email = req.body.email.trim().toLowerCase()
+    const password = req.body.password
 
     const user = await prisma.user.findUnique({ where: { email } })
     if (!user) return unauthorized(res, 'Invalid email or password')

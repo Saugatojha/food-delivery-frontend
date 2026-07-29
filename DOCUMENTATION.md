@@ -35,14 +35,14 @@ frontend/ (port 5173)
                    ├─ ErrorBoundary
                    ├─ AuthProvider (user state)
                    │    └─ ToastProvider
-                   │         └─ Navbar
+                   │         └─ Navbar (cart badge)
                    │         └─ <Routes>
                    │              ├─ /login -> Login
                    │              ├─ /register -> Register
-                   │              ├─ / -> ProtectedRoute -> Home
-                   │              ├─ /restaurant/:id -> ProtectedRoute -> Restaurant
+                   │              ├─ / -> ProtectedRoute -> Home (map + filters + sort)
+                   │              ├─ /restaurant/:id -> ProtectedRoute -> Restaurant (map)
                    │              ├─ /cart -> RoleRoute(customer) -> Cart
-                   │              ├─ /checkout -> RoleRoute(customer) -> Checkout (+ map)
+                   │              ├─ /checkout -> RoleRoute(customer) -> Checkout (+ map + phone)
                    │              ├─ /orders -> RoleRoute(customer) -> OrderTracking (+ map)
                    │              ├─ /owner -> RoleRoute(owner) -> OwnerDashboard
                    │              ├─ /owner/menu -> RoleRoute(owner) -> OwnerMenu
@@ -57,24 +57,22 @@ server/ (port 5000)
     │   ├── env.js               PORT, JWT_SECRET, JWT_EXPIRES_IN
     │   └── database.js          PrismaClient singleton with SQLite adapter
     ├── middleware/
-    │   └── auth.js              authenticate (JWT verify) + authorize (role check)
+    │   ├── auth.js              authenticate (JWT verify) + authorize (role check)
+    │   └── validate.js          validate() / validateOptional() field checkers
     ├── routes/
-    │   ├── auth.js              POST /register, POST /login, GET /me
+    │   ├── auth.js              POST /register (email normalized), POST /login (email normalized), GET /me
     │   ├── restaurants.js       GET /, GET /:id/menu
-    │   ├── orders.js            POST /, GET /, GET /tracking/:id, PATCH /:id/status
+    │   ├── orders.js            POST / (accepts phone), GET /, GET /tracking/:id, PATCH /:id/status
     │   ├── owner.js             GET /orders, GET /menu, POST /menu, PATCH /menu/:id, DELETE /menu/:id
     │   ├── rider.js             GET /deliveries, PATCH /location
     │   └── admin.js             GET /stats, GET /users, GET /restaurants
-    ├── middleware/
-    │   ├── auth.js              authenticate (JWT verify) + authorize (role check)
-    │   └── validate.js          validate() / validateOptional() field checkers
     └── utils/
         ├── statusFlow.js        Role-based status transition validation
-        └── errors.js            Consistent error response helpers (badRequest, notFound, etc.)
+        └── errors.js            Consistent error response helpers
   prisma/
-    ├── schema.prisma            9 models (User, Restaurant, MenuItem, Order, OrderItem, Payment, Delivery, Rating)
-    ├── seed.js                  Seeds 4 users, 6 restaurants (with lat/lng), 18 menu items
-    ├── reset.js                 Deletes dev.db, re-runs migrations, re-seeds
+    ├── schema.prisma            9 models (Order includes phone field)
+    ├── seed.js                  Seeds 4 users, 6 restaurants (Kathmandu coords), 18 menu items
+    ├── reset.js                 Refuses if server port 5000 in use, then deletes dev.db, re-runs migrations, re-seeds
     └── migrations/              SQLite migration files
 ```
 
@@ -92,37 +90,37 @@ src/
 ├── api/
 │   └── client.js                Axios -> VITE_API_URL (default localhost:5000/api). 401 clears auth + redirects.
 ├── context/
-│   ├── AuthContext.jsx           User state, login/register/logout via real API.
+│   ├── AuthContext.jsx           User state, login/register/logout via real API. Emails trimmed + lowercased.
 │   └── ToastContext.jsx          Toast notification system. Auto-dismiss after 3s.
 ├── utils/
 │   ├── storage.js                Safe readJson/writeJson/removeKeys.
 │   └── leafletIcon.js            Fixes Leaflet default marker icon for Vite.
 ├── services/
-│   └── orders.js                 Async API calls for orders + cart (localStorage) + status flow constants.
+│   └── orders.js                 Async API calls + cart (localStorage with cart-update event) + status flow constants.
 ├── components/
 │   ├── EmptyState.jsx            Reusable: icon + title + message + optional action.
 │   ├── ErrorBoundary.jsx         Catches render errors, shows reload button.
 │   ├── LoadingSkeleton.jsx       CardSkeleton + ListSkeleton with pulse animation.
-│   ├── MapView.jsx               Leaflet map: restaurant/delivery/rider markers, polyline route, click-to-select.
-│   ├── Navbar.jsx                Brand link + role-aware nav links + user name + logout.
+│   ├── MapView.jsx               Leaflet map: multi-restaurant markers with popups OR single restaurant/delivery/rider + polyline.
+│   ├── Navbar.jsx                Brand link + role-aware nav links + cart badge + user name + logout.
 │   ├── ProtectedRoute.jsx        Auth gate.
 │   └── RoleRoute.jsx             Role gate.
 ├── data/
-│   └── mock.js                   Backup mock data (formatPrice, calcTotal, MOCK_RESTAURANTS with coordinates).
+│   └── mock.js                   Backup mock data with Kathmandu coordinates.
 ├── pages/
-│   ├── Login.jsx                 Email/password form.
-│   ├── Register.jsx              Name/email/password form.
-│   ├── Home.jsx                  Restaurant grid from API. Closed restaurants greyed out.
-│   ├── Restaurant.jsx            Menu items from API. "Add to Cart" per item.
-│   ├── Cart.jsx                  Cart items with qty +/-/remove. Total. Empty state. LocalStorage.
-│   ├── Checkout.jsx              Address + map picker + payment. Sends delivery coords to API.
-│   ├── OrderTracking.jsx         5-step progress bar + map with markers + simulated rider.
+│   ├── Login.jsx                 Email/password with inline validation + toast on error.
+│   ├── Register.jsx              Name/email/password with inline validation.
+│   ├── Home.jsx                  Map showing all 6 restaurants + search by name/cuisine + cuisine filter chips + sort (Top Rated / Fastest Delivery / Open Now).
+│   ├── Restaurant.jsx            Map showing restaurant location + menu items from API.
+│   ├── Cart.jsx                  Cart items with qty +/-/remove + total + empty state. LocalStorage.
+│   ├── Checkout.jsx              Phone + address + map picker + inline validation (red borders + error text). Sends delivery coords to API.
+│   ├── OrderTracking.jsx         5-step progress bar + map with markers + simulated rider + phone display.
 │   ├── owner/
 │   │   ├── Dashboard.jsx         3 stats cards + pending list from API.
 │   │   ├── MenuManagement.jsx    List/add/delete menu items via API.
-│   │   └── Orders.jsx            Status flow via API with transition validation.
+│   │   └── Orders.jsx            Status flow with Accept/Reject buttons + phone display.
 │   ├── rider/
-│   │   └── Dashboard.jsx         Available deliveries from API + geolocation button + per-order map.
+│   │   └── Dashboard.jsx         Available deliveries from API + geolocation button + per-order map + phone display.
 │   └── admin/
 │       └── Panel.jsx             4 stat cards + users table + restaurants grid from API.
 ├── App.jsx                       Route definitions.
@@ -142,22 +140,25 @@ server/
 │   │   ├── env.js                Reads PORT, JWT_SECRET, JWT_EXPIRES_IN from env.
 │   │   └── database.js           PrismaClient with better-sqlite3 adapter.
 │   ├── middleware/
-│   │   └── auth.js               authenticate (JWT verify via Authorization header) + authorize (role check).
+│   │   ├── auth.js               authenticate (JWT verify via Authorization header) + authorize (role check).
+│   │   └── validate.js           validate() / validateOptional() field checkers.
 │   ├── routes/
-│   │   ├── auth.js               POST /api/auth/register, POST /api/auth/login, GET /api/auth/me
+│   │   ├── auth.js               POST /api/auth/register (email normalized), POST /api/auth/login (email normalized), GET /api/auth/me
 │   │   ├── restaurants.js        GET /api/restaurants, GET /api/restaurants/:id/menu
-│   │   ├── orders.js             POST /api/orders, GET /api/orders, GET /api/orders/tracking/:id, PATCH /api/orders/:id/status
+│   │   ├── orders.js             POST /api/orders (accepts phone), GET /api/orders, GET /api/orders/tracking/:id, PATCH /api/orders/:id/status
 │   │   ├── owner.js              GET /api/owner/orders, GET/POST/PATCH/DELETE /api/owner/menu
 │   │   ├── rider.js              GET /api/rider/deliveries, PATCH /api/rider/location
 │   │   └── admin.js              GET /api/admin/stats, GET /api/admin/users, GET /api/admin/restaurants
 │   └── utils/
-│       └── statusFlow.js         FLOWS per role, getNextStatus, isValidTransition, TERMINAL_STATUSES
+│       ├── statusFlow.js         FLOWS per role, getNextStatus, isValidTransition, TERMINAL_STATUSES
+│       └── errors.js             error, badRequest, unauthorized, forbidden, notFound, conflict, serverError
 ├── prisma/
-│   ├── schema.prisma             9 models
-│   ├── seed.js                   Seeds demo data
+│   ├── schema.prisma             9 models (Order.phone added)
+│   ├── seed.js                   Seeds demo data (Kathmandu coords)
+│   ├── reset.js                  Port-5000 guard, then deletes dev.db, re-runs migrations, re-seeds
 │   └── migrations/               Auto-generated by prisma migrate
-├── prisma.config.ts              Prisma 7 config (schema path, seed command, datasource URL)
-├── .env                          DATABASE_URL, JWT_SECRET, PORT
+├── prisma.config.ts              Prisma 7 config
+├── .env                          DATABASE_URL, JWT_SECRET, PORT=5000
 └── package.json
 ```
 
@@ -171,6 +172,9 @@ Key coordinate fields (for map feature):
 - `Restaurant.latitude` / `Restaurant.longitude`
 - `Order.deliveryLatitude` / `Order.deliveryLongitude`
 - `Delivery.riderLatitude` / `Delivery.riderLongitude` / `Delivery.locationUpdatedAt`
+
+Key contact field:
+- `Order.phone` — Customer phone number for delivery contact
 
 ---
 
@@ -186,6 +190,15 @@ Key coordinate fields (for map feature):
 | Admin User | admin@test.com | admin | Full system overview |
 
 **Restaurants:** 6 restaurants with Kathmandu-area coordinates, each with 3 menu items. Taco Town (ID 4) is `isOpen: false`.
+
+| Restaurant | Cuisine | Location (lat, lng) |
+|---|---|---|
+| Pizza Palace | Italian | 27.7150, 85.3120 (Thamel) |
+| Burger Barn | American | 27.7040, 85.3070 (Durbar Square) |
+| Sushi Spot | Japanese | 27.6710, 85.3260 (Patan) |
+| Taco Town | Mexican | 27.7210, 85.3620 (Boudhanath) |
+| Curry House | Indian | 27.7100, 85.3480 (Pashupatinath) |
+| Noodle Nest | Chinese | 27.6720, 85.4280 (Bhaktapur) |
 
 ---
 
@@ -215,6 +228,8 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 | POST | `/api/auth/login` | `{ email, password }` | `{ token, user }` |
 | GET | `/api/auth/me` | — | `{ user }` |
 
+Emails are normalized (trimmed + lowercased) on register and login.
+
 ### Restaurants
 
 | Method | Endpoint | Response |
@@ -226,9 +241,9 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
-| POST | `/api/orders` | `{ items: [{ menuItemId, restaurantId, quantity }], address, paymentMethod, deliveryLatitude?, deliveryLongitude? }` | `Order` |
+| POST | `/api/orders` | `{ items: [{ menuItemId, restaurantId, quantity }], address, phone?, paymentMethod, deliveryLatitude?, deliveryLongitude? }` | `Order` |
 | GET | `/api/orders` | — | `[ Order ]` |
-| GET | `/api/orders/tracking/:id` | — | `Order` with restaurant/ delivery coords |
+| GET | `/api/orders/tracking/:id` | — | `Order` with restaurant/delivery coords |
 | PATCH | `/api/orders/:id/status` | `{ status }` | `Order` |
 
 ### Owner
@@ -258,18 +273,36 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 
 ---
 
+## Key Frontend Features
+
+### Home Page
+- **Map** — Leaflet/OSM map showing all 6 restaurants as orange **R** markers at their Kathmandu locations. Click marker for popup with name + cuisine.
+- **Search** — Text filter by restaurant name or cuisine.
+- **Cuisine chips** — All / Italian / American / Japanese / Mexican / Indian / Chinese buttons.
+- **Sort** — Top Rated, Fastest Delivery, Open Now.
+- **Location label** — "Delivering to Kathmandu, Nepal".
+
+### Checkout
+- **Phone number** — Required field with format validation (7-15 digits).
+- **Inline validation** — Red borders + error messages for missing address, phone, map location, or closed restaurant.
+- **Cart badge** — Navbar shows live item count via `cart-update` custom event.
+
+### Email Normalization
+Emails are trimmed and lowercased both on the frontend (AuthContext) and backend (auth routes), so `John@Test.com` matches `john@test.com`.
+
+---
+
 ## Known Limitations
 
 1. **SQLite (dev only)** — Not suitable for production concurrency. Switch to MySQL/PostgreSQL for deployment.
 2. **Cart is localStorage** — Cart persists locally but doesn't sync across devices.
 3. **No real payment** — Payment is mocked. No Stripe/PayPal integration.
 4. **No real routing** — Map polyline is a straight line, not a road route.
-5. **No search/filter** — No search bar, cuisine filter, or sort on restaurant list.
-6. **No pagination** — All data loads at once.
-7. **No image uploads** — Text-based placeholders.
-8. **Form validation** — Minimal. No email format or password strength checks.
-9. **Owner-restaurant linking** — Hardcoded via `ownerId`. No UI to manage this.
-10. **Test coverage** — 43 backend tests + 41 frontend tests = 84 total.
+5. **No pagination** — All data loads at once.
+6. **No image uploads** — Text-based placeholders.
+7. **Owner-restaurant linking** — Hardcoded via `ownerId`. No UI to manage this.
+8. **Rider assignment** — No automatic rider assignment when order reaches Ready for Pickup.
+9. **Test coverage** — 43 backend tests + 41 frontend tests = 84 total.
 
 ---
 
@@ -282,7 +315,7 @@ cd server
 npm run dev          # Dev server with nodemon on port 5000
 npm run test         # Vitest (43 tests)
 npm run seed         # Re-run seed data
-npm run reset        # Delete dev.db, re-run migrations, re-seed
+npm run reset        # Refuses if port 5000 in use, then delete dev.db, re-run migrations, re-seed
 npm run migrate      # Run prisma migrate dev
 ```
 

@@ -8,14 +8,14 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => readJson('user'))
 
   const login = useCallback(async (email, password) => {
-    const { data } = await api.post('/auth/login', { email, password })
+    const { data } = await api.post('/auth/login', { email: email.trim().toLowerCase(), password })
     writeJson('token', data.token)
     writeJson('user', data.user)
     setUser(data.user)
   }, [])
 
   const register = useCallback(async (name, email, password) => {
-    const { data } = await api.post('/auth/register', { name, email, password })
+    const { data } = await api.post('/auth/register', { name: name.trim(), email: email.trim().toLowerCase(), password })
     writeJson('token', data.token)
     writeJson('user', data.user)
     setUser(data.user)
