@@ -16,6 +16,7 @@ SmartServe is a food ordering platform with four user roles: **Customer**, **Res
 | Maps | Leaflet + react-leaflet | Free map tiles via OpenStreetMap |
 | Lint | ESLint | React hooks + react-refresh rules |
 | Test (FE) | Vitest + Testing Library | Unit tests for utils, mock data, routes |
+| E2E (FE) | Playwright | Browser-level login flow tests (setup only) |
 | Backend | Express 5 | REST API server |
 | ORM | Prisma 7 | Database schema + migrations |
 | Database | SQLite | Zero-config file-based DB |
@@ -34,9 +35,9 @@ frontend/ (port 5173)
               └─ App.jsx
                    ├─ ErrorBoundary
                    ├─ AuthProvider (user state)
-                   │    └─ ToastProvider
-                   │         └─ Navbar (cart badge)
-                   │         └─ <Routes>
+                    │    └─ ToastProvider
+                    │         └─ Navbar (hamburger menu, cart badge, responsive)
+                    │         └─ <Routes>
                    │              ├─ /login -> Login
                    │              ├─ /register -> Register
                    │              ├─ / -> ProtectedRoute -> Home (map + filters + sort)
@@ -101,8 +102,8 @@ src/
 │   ├── EmptyState.jsx            Reusable: icon + title + message + optional action.
 │   ├── ErrorBoundary.jsx         Catches render errors, shows reload button.
 │   ├── LoadingSkeleton.jsx       CardSkeleton + ListSkeleton with pulse animation.
-│   ├── MapView.jsx               Leaflet map: multi-restaurant markers with popups OR single restaurant/delivery/rider + polyline.
-│   ├── Navbar.jsx                Brand link + role-aware nav links + cart badge + user name + logout.
+│   ├── MapView.jsx               Leaflet map: multi-restaurant markers with popups OR single restaurant/delivery/rider + OSRM road route.
+│   ├── Navbar.jsx                Brand link + role-aware nav links + cart badge + user name + logout + hamburger menu.
 │   ├── ProtectedRoute.jsx        Auth gate.
 │   └── RoleRoute.jsx             Role gate.
 ├── data/
@@ -125,7 +126,10 @@ src/
 │       └── Panel.jsx             4 stat cards + users table + restaurants grid from API.
 ├── App.jsx                       Route definitions.
 ├── main.jsx                      ReactDOM.createRoot + BrowserRouter + Leaflet CSS.
-└── index.css                     @import "tailwindcss"
+├── e2e/
+│   └── login.spec.js             Playwright: customer login flow + wrong-password error.
+├── playwright.config.js          Playwright config (baseURL localhost:5173, headless).
+└── index.css                     @import "tailwindcss", Inter font, brand CSS vars, hover-lift animation
 ```
 
 ---
@@ -189,16 +193,16 @@ Key contact field:
 | Rider Ram | rider@test.com | rider | Can update delivery status |
 | Admin User | admin@test.com | admin | Full system overview |
 
-**Restaurants:** 6 restaurants with Kathmandu-area coordinates, each with 3 menu items. Taco Town (ID 4) is `isOpen: false`.
+**Restaurants:** 6 restaurants with Kathmandu-area coordinates, each with 3 menu items. Taco Town (ID 4) is `isOpen: false`. Each has a placeholder image via `placehold.co`.
 
-| Restaurant | Cuisine | Location (lat, lng) |
-|---|---|---|
-| Pizza Palace | Italian | 27.7150, 85.3120 (Thamel) |
-| Burger Barn | American | 27.7040, 85.3070 (Durbar Square) |
-| Sushi Spot | Japanese | 27.6710, 85.3260 (Patan) |
-| Taco Town | Mexican | 27.7210, 85.3620 (Boudhanath) |
-| Curry House | Indian | 27.7100, 85.3480 (Pashupatinath) |
-| Noodle Nest | Chinese | 27.6720, 85.4280 (Bhaktapur) |
+| Restaurant | Cuisine | Location (lat, lng) | Image |
+|---|---|---|---|
+| Pizza Palace | Italian | 27.7150, 85.3120 (Thamel) | ✅ |
+| Burger Barn | American | 27.7040, 85.3070 (Durbar Square) | ✅ |
+| Sushi Spot | Japanese | 27.6710, 85.3260 (Patan) | ✅ |
+| Taco Town | Mexican | 27.7210, 85.3620 (Boudhanath) | ✅ |
+| Curry House | Indian | 27.7100, 85.3480 (Pashupatinath) | ✅ |
+| Noodle Nest | Chinese | 27.6720, 85.4280 (Bhaktapur) | ✅ |
 
 ---
 
@@ -290,19 +294,42 @@ Emails are normalized (trimmed + lowercased) on register and login.
 ### Email Normalization
 Emails are trimmed and lowercased both on the frontend (AuthContext) and backend (auth routes), so `John@Test.com` matches `john@test.com`.
 
+### Responsive Navigation
+- **Hamburger menu** — Navbar collapses to a hamburger button (`☰`/`✕`) on small screens. Menu items slide down in a mobile dropdown.
+- **`aria-expanded`** — Screen-reader-accessible toggle state.
+
+### Brand Styling
+- **CSS variables** — `--primary: #F97316` (orange), `--font-base: 'Inter', system-ui` set via `@theme` directive in `index.css`.
+- **Inter font** — Loaded from Google Fonts in `index.html`.
+- **Hover-lift** — `.hover-lift` utility class: `translateY(-2px)` + box-shadow on hover, applied to restaurant cards.
+
+### Restaurant Images
+- **Schema** — `Restaurant.image` (String?) added via migration `add_image`.
+- **Placeholder URLs** — Each of the 6 restaurants has a `placehold.co` URL in seed data.
+- **Display** — Thumbnail image shown on Home cards and Restaurant detail page.
+
+### OSRM Road Routing
+- **RoadRoute component** — Fetches driving route geometry from the public OSRM API (`router.project-osrm.org`).
+- **Real polyline** — Replaces the previous straight-line polyline with the actual road path.
+- **Fallback** — If the OSRM fetch fails, no route is drawn (silent failure).
+
+### Accessibility
+- **`aria-label`** — Added to search input, cuisine filter chips (`aria-pressed`), login/register buttons, checkout actions, place-order, and "use current location" button.
+- **`aria-expanded`** — Navbar hamburger menu communicates toggle state.
+
 ---
 
 ## Known Limitations
 
 1. **SQLite (dev only)** — Not suitable for production concurrency. Switch to MySQL/PostgreSQL for deployment.
-2. **Cart is localStorage** — Cart persists locally but doesn't sync across devices.
+2. **Cart is localStorage** — Cart persists locally but doesn't sync across devices (no backend cart API).
 3. **No real payment** — Payment is mocked. No Stripe/PayPal integration.
-4. **No real routing** — Map polyline is a straight line, not a road route.
-5. **No pagination** — All data loads at once.
-6. **No image uploads** — Text-based placeholders.
-7. **Owner-restaurant linking** — Hardcoded via `ownerId`. No UI to manage this.
-8. **Rider assignment** — No automatic rider assignment when order reaches Ready for Pickup.
-9. **Test coverage** — 43 backend tests + 41 frontend tests = 84 total.
+4. **No pagination** — All data loads at once.
+5. **No image uploads** — Placeholder images from `placehold.co`, no file upload.
+6. **Owner-restaurant linking** — Hardcoded via `ownerId`. No UI to manage this.
+7. **Rider assignment** — No automatic rider assignment when order reaches Ready for Pickup.
+8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
+9. **Test coverage** — 43 backend tests + 41 frontend tests + Playwright config (e2e/ directory) = 84 unit tests.
 
 ---
 
@@ -327,6 +354,7 @@ npm run build        # Production build -> dist/
 npm run preview      # Preview production build
 npm run lint         # ESLint check
 npm run test         # Vitest (41 tests)
+npm run test:e2e     # Playwright E2E tests (requires both servers running)
 ```
 
 ### Running Tests
@@ -340,6 +368,9 @@ cd server && npx vitest run
 
 # Both
 cd server && npx vitest run && cd .. && npm run test
+
+# E2E tests (requires both servers running)
+npx playwright test
 ```
 
 The frontend Axios client defaults to `http://localhost:5000/api`. Set `VITE_API_URL` in `.env` to override.

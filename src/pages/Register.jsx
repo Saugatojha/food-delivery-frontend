@@ -55,7 +55,7 @@ export default function Register() {
           <input className={`border p-2 rounded w-full ${errors.password ? 'border-red-400' : ''}`} type="password" placeholder="Password" value={form.password} onChange={e => { setForm(p => ({ ...p, password: e.target.value })); setErrors(p => ({ ...p, password: '' })) }} />
           {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
         </div>
-        <button className="bg-orange-500 text-white p-3 rounded font-medium disabled:opacity-50" disabled={loading}>{loading ? 'Creating account...' : 'Register'}</button>
+        <button className="bg-orange-500 text-white p-3 rounded font-medium disabled:opacity-50" disabled={loading} aria-label="Register">{loading ? 'Creating account...' : 'Register'}</button>
         <p className="text-sm text-center text-gray-500">Already have an account? <Link to="/login" className="text-orange-500">Login</Link></p>
       </form>
     </div>

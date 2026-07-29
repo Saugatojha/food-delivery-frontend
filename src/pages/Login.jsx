@@ -50,7 +50,7 @@ export default function Login() {
           <input className={`border p-2 rounded w-full ${errors.password ? 'border-red-400' : ''}`} type="password" placeholder="Password" value={form.password} onChange={e => { setForm(p => ({ ...p, password: e.target.value })); setErrors(p => ({ ...p, password: '' })) }} />
           {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
         </div>
-        <button className="bg-orange-500 text-white p-3 rounded font-medium disabled:opacity-50" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</button>
+        <button className="bg-orange-500 text-white p-3 rounded font-medium disabled:opacity-50" disabled={loading} aria-label="Login">{loading ? 'Logging in...' : 'Login'}</button>
         <p className="text-sm text-center text-gray-500">Don't have an account? <Link to="/register" className="text-orange-500">Register</Link></p>
       </form>
     </div>

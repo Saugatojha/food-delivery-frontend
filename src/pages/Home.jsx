@@ -58,9 +58,10 @@ export default function Home() {
             <input
               type="text"
               placeholder="Search by name or cuisine..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="border p-2 rounded flex-1 text-sm"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="border p-2 rounded flex-1 text-sm"
+            aria-label="Search restaurants"
             />
             <select
               value={sort}
@@ -79,6 +80,8 @@ export default function Home() {
               <button
                 key={c}
                 onClick={() => setCuisineFilter(c)}
+                aria-pressed={cuisineFilter === c}
+                aria-label={`Filter by ${c} cuisine`}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${cuisineFilter === c ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300 hover:border-orange-400'}`}
               >
                 {c}
@@ -106,9 +109,15 @@ export default function Home() {
             <Link
               key={r.id}
               to={r.isOpen ? `/restaurant/${r.id}` : '#'}
-              className={`border rounded-lg p-4 transition hover:shadow-md ${!r.isOpen ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`border rounded-lg p-4 hover-lift ${!r.isOpen ? 'opacity-50 pointer-events-none' : ''}`}
             >
-              <div className="text-3xl mb-2">{r.image || '🍽'}</div>
+              <div className="w-full h-32 bg-gray-100 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                {r.image ? (
+                  <img src={r.image} alt={r.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-4xl">🍽</span>
+                )}
+              </div>
               <h2 className="text-lg font-semibold">{r.name}</h2>
               <p className="text-sm text-gray-500">{r.cuisine}</p>
               <div className="flex justify-between mt-3 text-sm">

@@ -41,14 +41,17 @@ describe('MapView', () => {
     expect(screen.getAllByTestId('marker')).toHaveLength(2)
   })
 
-  it('renders polyline when both restaurant and delivery exist', () => {
+  it('renders polyline when both restaurant and delivery exist', async () => {
+    const mockRoute = { routes: [{ geometry: { coordinates: [[77.59, 12.97], [77.60, 12.98]] } }] }
+    globalThis.fetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve(mockRoute) })
     render(
       <MapView
         restaurant={{ latitude: 12.97, longitude: 77.59 }}
         delivery={{ latitude: 12.98, longitude: 77.60 }}
       />
     )
-    expect(screen.getByTestId('polyline')).toBeInTheDocument()
+    const polyline = await screen.findByTestId('polyline', {}, { timeout: 2000 })
+    expect(polyline).toBeInTheDocument()
   })
 })
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 
@@ -66,6 +66,22 @@ function FitBounds({ bounds }) {
   return null
 }
 
+function RoadRoute({ from, to }) {
+  useMap()
+  const [coords, setCoords] = useState(null)
+
+  useEffect(() => {
+    if (!from || !to) return
+    const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?geometries=geojson`
+    fetch(url).then(r => r.json()).then(data => {
+      const route = data.routes?.[0]?.geometry?.coordinates
+      if (route) setCoords(route.map(c => [c[1], c[0]]))
+    }).catch(() => {})
+  }, [from, to])
+
+  return coords ? <Polyline positions={coords} pathOptions={{ color: '#f97316', weight: 3 }} /> : null
+}
+
 export default function MapView({
   center = [27.7000, 85.3500],
   zoom = 13,
@@ -106,12 +122,12 @@ export default function MapView({
         {deliveryPos && <Marker position={deliveryPos} icon={deliveryIcon} />}
         {riderPos && <Marker position={riderPos} icon={riderIcon} />}
         {routePoints.length === 2 && (
-          <Polyline positions={routePoints} pathOptions={{ color: '#f97316', weight: 2, dashArray: '8, 6' }} />
+          <RoadRoute from={routePoints[0]} to={routePoints[1]} />
         )}
       </MapContainer>
       {showRouteNote && routePoints.length === 2 && (
         <div className="absolute bottom-1 left-1 bg-white/80 text-[10px] text-gray-500 px-1.5 py-0.5 rounded z-[1000]">
-          Route line is approximate (straight-line)
+          Route via OSRM (road network)
         </div>
       )}
     </div>

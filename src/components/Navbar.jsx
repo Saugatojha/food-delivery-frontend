@@ -25,6 +25,7 @@ const roleLinks = {
 export default function Navbar() {
   const { user, logout } = useAuth()
   const [cartQty, setCartQty] = useState(0)
+  const [menuOpen, setMenuOpen] = useState(false)
   const links = user ? roleLinks[user.role] || roleLinks.customer : []
 
   useEffect(() => {
@@ -36,26 +37,37 @@ export default function Navbar() {
 
   return (
     <nav className="bg-orange-500 text-white px-4 sm:px-6 py-3 flex items-center justify-between">
-      <Link to={user ? '/' : '/login'} className="text-xl font-bold">Smart Serve</Link>
+      <Link to={user ? '/' : '/login'} className="text-xl font-bold" aria-label="Home">Smart Serve</Link>
 
       {user && (
-        <div className="flex gap-3 sm:gap-4 items-center text-sm sm:text-base">
-          {links.map(l => (
-            <Link key={l.to} to={l.to} className="relative">
-              {l.label}
-              {l.label === 'Cart' && cartQty > 0 && (
-                <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
-                  {cartQty}
-                </span>
-              )}
-            </Link>
-          ))}
-          <span className="hidden sm:inline text-orange-200">|</span>
-          <span className="hidden sm:inline text-orange-100 text-sm">{user.name}</span>
-          <button onClick={logout} className="bg-white text-orange-500 px-3 py-1 rounded text-sm font-medium">
-            Logout
+        <>
+          <button
+            className="sm:hidden text-white text-2xl leading-none focus:outline-none"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? '✕' : '☰'}
           </button>
-        </div>
+
+          <div className={`${menuOpen ? 'flex' : 'hidden'} sm:flex absolute sm:static top-14 left-0 right-0 bg-orange-500 sm:bg-transparent flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center text-sm sm:text-base p-4 sm:p-0 z-50 shadow-lg sm:shadow-none`}>
+            {links.map(l => (
+              <Link key={l.to} to={l.to} className="relative" onClick={() => setMenuOpen(false)}>
+                {l.label}
+                {l.label === 'Cart' && cartQty > 0 && (
+                  <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                    {cartQty}
+                  </span>
+                )}
+              </Link>
+            ))}
+            <span className="hidden sm:inline text-orange-200">|</span>
+            <span className="text-orange-100 text-sm">{user.name}</span>
+            <button onClick={logout} className="bg-white text-orange-500 px-3 py-1 rounded text-sm font-medium" aria-label="Logout">
+              Logout
+            </button>
+          </div>
+        </>
       )}
     </nav>
   )

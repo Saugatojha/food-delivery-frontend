@@ -27,6 +27,7 @@ model Restaurant {
   name        String
   cuisine     String
   rating      Float    @default(0)
+  image       String?
   deliveryTime String  @default("25-35 min")
   isOpen      Boolean  @default(true)
   latitude    Float?

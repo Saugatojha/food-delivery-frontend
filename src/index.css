@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+:root {
+  --primary: #f97316;
+  --primary-dark: #ea580c;
+  --primary-light: #fb923c;
+  --font-base: 'Inter', system-ui, sans-serif;
+}
+
+* { font-family: var(--font-base); }
+
+@theme {
+  --color-primary: #f97316;
+  --color-primary-dark: #ea580c;
+  --color-primary-light: #fb923c;
+}
+
+.hover-lift {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}

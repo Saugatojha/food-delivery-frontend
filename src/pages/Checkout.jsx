@@ -106,7 +106,7 @@ export default function Checkout() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <label className="block text-sm font-medium text-gray-700">Choose delivery location on map</label>
-          <button onClick={useCurrentLocation} disabled={locating} className="text-xs bg-gray-100 hover:bg-gray-200 border px-2 py-1 rounded disabled:opacity-50">
+          <button onClick={useCurrentLocation} disabled={locating} className="text-xs bg-gray-100 hover:bg-gray-200 border px-2 py-1 rounded disabled:opacity-50" aria-label="Use current location">
             {locating ? 'Detecting...' : 'Use current location'}
           </button>
         </div>
@@ -151,7 +151,7 @@ export default function Checkout() {
         </div>
       </div>
 
-      <button onClick={placeOrder} disabled={placing} className="bg-orange-500 text-white p-3 rounded w-full font-medium disabled:opacity-50">
+      <button onClick={placeOrder} disabled={placing} className="bg-orange-500 text-white p-3 rounded w-full font-medium disabled:opacity-50" aria-label="Place order">
         {placing ? 'Placing Order...' : 'Place Order'}
       </button>
     </div>
