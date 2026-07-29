@@ -9,7 +9,7 @@ const router = express.Router()
 
 router.post('/', authenticate, validate('address'), async (req, res) => {
   try {
-    const { items, address, paymentMethod, deliveryLatitude, deliveryLongitude } = req.body
+    const { items, address, phone, paymentMethod, deliveryLatitude, deliveryLongitude } = req.body
     if (!items || !items.length) return badRequest(res, 'Items required')
 
     const restaurantId = items[0].restaurantId
@@ -31,6 +31,7 @@ router.post('/', authenticate, validate('address'), async (req, res) => {
         restaurantId,
         total,
         address,
+        phone,
         paymentMethod: paymentMethod || 'cash',
         status: 'Pending',
         deliveryLatitude: deliveryLatitude || null,

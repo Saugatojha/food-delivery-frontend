@@ -40,16 +40,16 @@ async function main() {
     create: {
       id: 1, name: 'Pizza Palace', cuisine: 'Italian', rating: 4.5,
       deliveryTime: '25-35 min', ownerId: ownerUser.id,
-      latitude: 12.9716, longitude: 77.5946,
+      latitude: 27.7150, longitude: 85.3120,
     },
   })
 
   const restaurants = [
-    { id: 2, name: 'Burger Barn', cuisine: 'American', rating: 4.2, deliveryTime: '20-30 min', latitude: 12.9352, longitude: 77.6245 },
-    { id: 3, name: 'Sushi Spot', cuisine: 'Japanese', rating: 4.7, deliveryTime: '30-40 min', latitude: 12.9815, longitude: 77.5623 },
-    { id: 4, name: 'Taco Town', cuisine: 'Mexican', rating: 4.3, deliveryTime: '15-25 min', isOpen: false, latitude: 12.9555, longitude: 77.6412 },
-    { id: 5, name: 'Curry House', cuisine: 'Indian', rating: 4.6, deliveryTime: '25-35 min', latitude: 12.9921, longitude: 77.5813 },
-    { id: 6, name: 'Noodle Nest', cuisine: 'Chinese', rating: 4.1, deliveryTime: '20-30 min', latitude: 12.9468, longitude: 77.5536 },
+    { id: 2, name: 'Burger Barn', cuisine: 'American', rating: 4.2, deliveryTime: '20-30 min', latitude: 27.7040, longitude: 85.3070 },
+    { id: 3, name: 'Sushi Spot', cuisine: 'Japanese', rating: 4.7, deliveryTime: '30-40 min', latitude: 27.6710, longitude: 85.3260 },
+    { id: 4, name: 'Taco Town', cuisine: 'Mexican', rating: 4.3, deliveryTime: '15-25 min', isOpen: false, latitude: 27.7210, longitude: 85.3620 },
+    { id: 5, name: 'Curry House', cuisine: 'Indian', rating: 4.6, deliveryTime: '25-35 min', latitude: 27.7100, longitude: 85.3480 },
+    { id: 6, name: 'Noodle Nest', cuisine: 'Chinese', rating: 4.1, deliveryTime: '20-30 min', latitude: 27.6720, longitude: 85.4280 },
   ]
 
   for (const r of restaurants) {

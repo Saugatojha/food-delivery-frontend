@@ -66,6 +66,7 @@ export default function OrderTracking() {
                 ))}
                 <p className="font-bold mt-2">{formatPrice(order.total)}</p>
                 <p className="text-xs text-gray-500 mt-1">Deliver to: {order.address}</p>
+                {order.phone && <p className="text-xs text-gray-500">Phone: {order.phone}</p>}
                 <p className="text-xs text-gray-500">Payment: {order.paymentMethod}</p>
               </div>
               <div className="sm:text-right">

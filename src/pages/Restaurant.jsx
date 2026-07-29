@@ -6,6 +6,7 @@ import { formatPrice } from '../data/mock'
 import { getCart, saveCart } from '../services/orders'
 import api from '../api/client'
 import EmptyState from '../components/EmptyState'
+import MapView from '../components/MapView'
 
 export default function Restaurant() {
   const { id } = useParams()
@@ -51,6 +52,9 @@ export default function Restaurant() {
         <Link to="/" className="text-sm text-orange-500">&larr; Back to restaurants</Link>
         <h1 className="text-2xl sm:text-3xl font-bold mt-1">{restaurant.name}</h1>
         <p className="text-gray-500">{restaurant.cuisine} &middot; {restaurant.deliveryTime}</p>
+      </div>
+      <div className="mb-6">
+        <MapView restaurant={restaurant} height="220px" interactive={false} />
       </div>
       <div className="grid gap-3">
         {items.map(item => (

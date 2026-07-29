@@ -82,8 +82,8 @@ describe('rider location', () => {
   it('updates rider location', async () => {
     const token = await getToken('rider@test.com')
     const res = await request(app).patch('/api/rider/location').set('Authorization', `Bearer ${token}`).send({
-      latitude: 12.97,
-      longitude: 77.59,
+      latitude: 27.70,
+      longitude: 85.35,
     })
     expect(res.status).toBe(404)
   })

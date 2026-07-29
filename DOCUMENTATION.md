@@ -185,7 +185,7 @@ Key coordinate fields (for map feature):
 | Rider Ram | rider@test.com | rider | Can update delivery status |
 | Admin User | admin@test.com | admin | Full system overview |
 
-**Restaurants:** 6 restaurants with Bengaluru-area coordinates, each with 3 menu items. Taco Town (ID 4) is `isOpen: false`.
+**Restaurants:** 6 restaurants with Kathmandu-area coordinates, each with 3 menu items. Taco Town (ID 4) is `isOpen: false`.
 
 ---
 

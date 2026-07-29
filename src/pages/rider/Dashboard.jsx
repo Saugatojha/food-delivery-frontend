@@ -99,6 +99,7 @@ export default function RiderDashboard() {
                 ))}
                 <p className="font-medium mt-1">{formatPrice(order.total)}</p>
                 <p className="text-xs text-gray-500 mt-1">Deliver to: {order.address}</p>
+                {order.phone && <p className="text-xs text-gray-500">Phone: {order.phone}</p>}
               </div>
               <div className="text-right">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === 'Ready for Pickup' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>

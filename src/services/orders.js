@@ -40,6 +40,7 @@ export function getCart() {
 
 export function saveCart(items) {
   localStorage.setItem('cart', JSON.stringify(items))
+  window.dispatchEvent(new CustomEvent('cart-update'))
 }
 
 export async function submitOrder(orderPayload) {
@@ -50,6 +51,7 @@ export async function submitOrder(orderPayload) {
       quantity: i.qty || i.quantity,
     })),
     address: orderPayload.address,
+    phone: orderPayload.phone,
     paymentMethod: orderPayload.paymentMethod,
     deliveryLatitude: orderPayload.deliveryLatitude,
     deliveryLongitude: orderPayload.deliveryLongitude,

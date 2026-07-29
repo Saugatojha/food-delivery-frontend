@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 
 const BASE = 'background:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;font-family:sans-serif;border:3px solid;box-shadow:0 2px 6px rgba(0,0,0,0.3)'
@@ -67,9 +67,10 @@ function FitBounds({ bounds }) {
 }
 
 export default function MapView({
-  center = [12.9716, 77.5946],
+  center = [27.7000, 85.3500],
   zoom = 13,
   restaurant,
+  restaurants,
   delivery,
   rider,
   onClick,
@@ -82,7 +83,8 @@ export default function MapView({
   const riderPos = rider ? [rider.latitude, rider.longitude] : null
 
   const routePoints = [restaurantPos, deliveryPos].filter(Boolean)
-  const bounds = [restaurantPos, deliveryPos, riderPos].filter(Boolean)
+  const restaurantBounds = restaurants ? restaurants.map(r => [r.latitude, r.longitude]) : []
+  const bounds = [...restaurantBounds, restaurantPos, deliveryPos, riderPos].filter(Boolean)
 
   return (
     <div style={{ height, width: '100%' }} className="rounded-lg overflow-hidden border relative">
@@ -94,7 +96,13 @@ export default function MapView({
         <TileErrorFallback />
         <FitBounds bounds={bounds} />
         {onClick && <ClickHandler onClick={onClick} />}
-        {restaurantPos && <Marker position={restaurantPos} icon={restaurantIcon} />}
+        {restaurants
+          ? restaurants.map(r => (
+              <Marker key={r.id} position={[r.latitude, r.longitude]} icon={restaurantIcon}>
+                <Popup><b>{r.name}</b><br/>{r.cuisine}</Popup>
+              </Marker>
+            ))
+          : restaurantPos && <Marker position={restaurantPos} icon={restaurantIcon} />}
         {deliveryPos && <Marker position={deliveryPos} icon={deliveryIcon} />}
         {riderPos && <Marker position={riderPos} icon={riderIcon} />}
         {routePoints.length === 2 && (

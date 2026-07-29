@@ -65,6 +65,7 @@ export default function OwnerOrders() {
                 ))}
                 <p className="font-medium mt-1">{formatPrice(order.total)}</p>
                 <p className="text-xs text-gray-500 mt-1">{order.address}</p>
+                {order.phone && <p className="text-xs text-gray-500">Phone: {order.phone}</p>}
               </div>
               <div className="text-right">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : order.status === 'Ready for Pickup' ? 'bg-green-100 text-green-700' : order.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>

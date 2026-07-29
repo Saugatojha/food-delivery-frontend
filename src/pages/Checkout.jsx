@@ -9,10 +9,12 @@ export default function Checkout() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [address, setAddress] = useState('')
+  const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [placing, setPlacing] = useState(false)
   const [deliveryPos, setDeliveryPos] = useState(null)
   const [locating, setLocating] = useState(false)
+  const [errors, setErrors] = useState({})
 
   const cart = getCart()
   const total = calcTotal(cart)
@@ -23,7 +25,10 @@ export default function Checkout() {
     return <Navigate to="/cart" replace />
   }
 
-  const handleMapClick = (latlng) => { setDeliveryPos(latlng) }
+  const handleMapClick = (latlng) => {
+    setDeliveryPos(latlng)
+    setErrors(p => ({ ...p, location: '' }))
+  }
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) return showToast('Geolocation not supported', 'error')
@@ -32,6 +37,7 @@ export default function Checkout() {
       (pos) => {
         setDeliveryPos({ lat: pos.coords.latitude, lng: pos.coords.longitude })
         setLocating(false)
+        setErrors(p => ({ ...p, location: '' }))
         showToast('Location detected', 'success')
       },
       () => {
@@ -42,19 +48,30 @@ export default function Checkout() {
     )
   }
 
+  const validate = () => {
+    const e = {}
+    if (!address.trim()) e.address = 'Delivery address is required'
+    if (!phone.trim()) e.phone = 'Phone number is required'
+    else if (!/^[\d\s+\-()]{7,15}$/.test(phone.trim())) e.phone = 'Enter a valid phone number (7-15 digits)'
+    if (!restaurant?.isOpen) e.restaurant = 'Restaurant is currently closed'
+    if (!deliveryPos) e.location = 'Please select a delivery location on the map'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
   const placeOrder = async () => {
-    if (!address.trim()) return showToast('Enter a delivery address', 'error')
     if (placing) return
+    if (!validate()) return
     setPlacing(true)
     try {
-      const pos = deliveryPos || { lat: restaurant.latitude + 0.008, lng: restaurant.longitude + 0.005 }
       await submitOrder({
         items: cart,
         total,
         address: address.trim(),
+        phone: phone.trim(),
         paymentMethod,
-        deliveryLatitude: pos.lat,
-        deliveryLongitude: pos.lng,
+        deliveryLatitude: deliveryPos.lat,
+        deliveryLongitude: deliveryPos.lng,
       })
       saveCart([])
       showToast('Order placed successfully!', 'success')
@@ -70,9 +87,20 @@ export default function Checkout() {
     <div className="max-w-3xl mx-auto p-4 sm:p-6">
       <h1 className="text-2xl font-bold mb-6">Checkout</h1>
 
+      {errors.restaurant && (
+        <p className="bg-red-50 text-red-600 text-sm p-3 rounded mb-4 border border-red-200">{errors.restaurant}</p>
+      )}
+
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
-        <textarea className="border p-2 rounded w-full" rows="3" value={address} onChange={e => setAddress(e.target.value)} placeholder="Enter your full address" />
+        <textarea className={`border p-2 rounded w-full ${errors.address ? 'border-red-400' : ''}`} rows="3" value={address} onChange={e => { setAddress(e.target.value); setErrors(p => ({ ...p, address: '' })) }} placeholder="Enter your full address" />
+        {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+        <input className={`border p-2 rounded w-full sm:w-80 ${errors.phone ? 'border-red-400' : ''}`} type="tel" placeholder="e.g. 9841XXXXXX" value={phone} onChange={e => { setPhone(e.target.value); setErrors(p => ({ ...p, phone: '' })) }} />
+        {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
       </div>
 
       <div className="mb-6">
@@ -82,20 +110,23 @@ export default function Checkout() {
             {locating ? 'Detecting...' : 'Use current location'}
           </button>
         </div>
-        <MapView
-          center={[restaurant.latitude, restaurant.longitude]}
-          zoom={14}
-          restaurant={restaurant}
-          delivery={deliveryPos ? { latitude: deliveryPos.lat, longitude: deliveryPos.lng } : null}
-          onClick={handleMapClick}
-          height="280px"
-          showRouteNote
-        />
+        <div className={`rounded-lg overflow-hidden border ${errors.location ? 'border-red-400' : ''}`}>
+          <MapView
+            center={[restaurant.latitude, restaurant.longitude]}
+            zoom={14}
+            restaurant={restaurant}
+            delivery={deliveryPos ? { latitude: deliveryPos.lat, longitude: deliveryPos.lng } : null}
+            onClick={handleMapClick}
+            height="280px"
+            showRouteNote
+          />
+        </div>
         {deliveryPos ? (
           <p className="text-xs text-green-600 font-medium mt-1">Delivery location set: {deliveryPos.lat.toFixed(4)}, {deliveryPos.lng.toFixed(4)}</p>
         ) : (
           <p className="text-xs text-gray-400 mt-1">Click on the map to set delivery location (or use current location)</p>
         )}
+        {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
       </div>
 
       <div className="mb-6">

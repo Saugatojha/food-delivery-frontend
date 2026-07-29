@@ -62,12 +62,12 @@ describe('restaurant coordinates', () => {
     })
   })
 
-  it('restaurant coordinates are within Bengaluru area', () => {
+  it('restaurant coordinates are within Kathmandu area', () => {
     MOCK_RESTAURANTS.forEach(r => {
-      expect(r.latitude).toBeGreaterThan(12.9)
-      expect(r.latitude).toBeLessThan(13.0)
-      expect(r.longitude).toBeGreaterThan(77.5)
-      expect(r.longitude).toBeLessThan(77.7)
+      expect(r.latitude).toBeGreaterThan(27.6)
+      expect(r.latitude).toBeLessThan(27.8)
+      expect(r.longitude).toBeGreaterThan(85.2)
+      expect(r.longitude).toBeLessThan(85.5)
     })
   })
 })
