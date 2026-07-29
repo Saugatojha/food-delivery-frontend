@@ -77,6 +77,10 @@ server/ (port 5000)
     └── migrations/              SQLite migration files
 ```
 
+### Security Checklist
+
+A `SECURITY_CHECKLIST.md` is maintained at the project root covering 4 areas (security, functional, performance, accessibility) with recommended fixes for each item.
+
 ### Route Guards
 
 - **ProtectedRoute** — redirects to `/login` if no user in context. Saves intended path.
