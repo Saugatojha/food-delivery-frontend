@@ -1,34 +1,40 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import api from '../api/client'
-
-const MOCK_RESTAURANTS = [
-  { id: 1, name: 'Pizza Palace', cuisine: 'Italian', rating: 4.5, deliveryTime: '25-35 min' },
-  { id: 2, name: 'Burger Barn', cuisine: 'American', rating: 4.2, deliveryTime: '20-30 min' },
-  { id: 3, name: 'Sushi Spot', cuisine: 'Japanese', rating: 4.7, deliveryTime: '30-40 min' },
-  { id: 4, name: 'Taco Town', cuisine: 'Mexican', rating: 4.3, deliveryTime: '15-25 min' },
-  { id: 5, name: 'Curry House', cuisine: 'Indian', rating: 4.6, deliveryTime: '25-35 min' },
-  { id: 6, name: 'Noodle Nest', cuisine: 'Chinese', rating: 4.1, deliveryTime: '20-30 min' },
-]
+import { MOCK_RESTAURANTS, mockGetRestaurants } from '../data/mock'
+import { ListSkeleton } from '../components/LoadingSkeleton'
+import EmptyState from '../components/EmptyState'
 
 export default function Home() {
-  const [restaurants, setRestaurants] = useState(MOCK_RESTAURANTS)
+  const [restaurants] = useState(mockGetRestaurants)
+  const [loading] = useState(false)
 
   return (
-    <div className="max-w-5xl mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Restaurants</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {restaurants.map(r => (
-          <Link key={r.id} to={`/restaurant/${r.id}`} className="border rounded-lg p-4 hover:shadow-lg transition">
-            <h2 className="text-xl font-semibold">{r.name}</h2>
-            <p className="text-gray-600">{r.cuisine}</p>
-            <div className="flex justify-between mt-2 text-sm">
-              <span>⭐ {r.rating}</span>
-              <span>{r.deliveryTime}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
+    <div className="max-w-5xl mx-auto p-4 sm:p-6">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6">Restaurants</h1>
+      {loading ? (
+        <ListSkeleton count={6} />
+      ) : restaurants.length === 0 ? (
+        <EmptyState icon="🍽️" title="No restaurants available" message="Check back later" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {restaurants.map(r => (
+            <Link
+              key={r.id}
+              to={r.isOpen ? `/restaurant/${r.id}` : '#'}
+              className={`border rounded-lg p-4 transition hover:shadow-md ${!r.isOpen ? 'opacity-50 pointer-events-none' : ''}`}
+            >
+              <div className="text-3xl mb-2">{r.image}</div>
+              <h2 className="text-lg font-semibold">{r.name}</h2>
+              <p className="text-sm text-gray-500">{r.cuisine}</p>
+              <div className="flex justify-between mt-3 text-sm">
+                <span className="text-yellow-600">⭐ {r.rating}</span>
+                <span className="text-gray-500">{r.deliveryTime}</span>
+              </div>
+              {!r.isOpen && <span className="text-xs text-red-500 font-medium mt-1 block">Currently closed</span>}
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
