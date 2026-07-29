@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
-import { formatPrice } from '../../data/mock'
+import { formatPrice, MOCK_RESTAURANTS } from '../../data/mock'
 import {
   getAvailableDeliveries,
   updateOrderStatus,
@@ -9,6 +9,7 @@ import {
   getNextStatus,
   isValidTransition,
 } from '../../services/orders'
+import MapView from '../../components/MapView'
 import EmptyState from '../../components/EmptyState'
 
 const FLOW = STATUS_FLOWS.rider
@@ -16,18 +17,53 @@ const FLOW = STATUS_FLOWS.rider
 export default function RiderDashboard() {
   const { user } = useAuth()
   const { showToast } = useToast()
-  const [orders, setOrders] = useState(getAvailableDeliveries())
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [riderLocation, setRiderLocation] = useState(null)
+  const [locating, setLocating] = useState(false)
 
-  const advanceOrder = (order) => {
+  useEffect(() => {
+    getAvailableDeliveries().then(data => {
+      setOrders(data)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const advanceOrder = async (order) => {
     const next = getNextStatus(order.status, FLOW)
     if (!next) return
     if (!isValidTransition(order.status, next, FLOW)) {
       return showToast('Invalid status transition', 'error')
     }
-    updateOrderStatus(order.id, next)
-    setOrders(getAvailableDeliveries())
-    showToast(`Order #${order.id} → ${next}`, 'success')
+    try {
+      await updateOrderStatus(order.id, next)
+      const updated = await getAvailableDeliveries()
+      setOrders(updated)
+      showToast(`Order #${order.id} → ${next}`, 'success')
+    } catch {
+      showToast('Failed to update order', 'error')
+    }
   }
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      return showToast('Geolocation not supported', 'error')
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setRiderLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+        setLocating(false)
+        showToast('Location updated', 'success')
+      },
+      () => {
+        setLocating(false)
+        showToast('Could not get location', 'error')
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
+
+  if (loading) return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">Loading...</div>
 
   if (orders.length === 0) {
     return <EmptyState icon="🛵" title="No deliveries available" message="Waiting for restaurants to mark orders ready" />
@@ -35,17 +71,26 @@ export default function RiderDashboard() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6">
-      <h1 className="text-2xl font-bold mb-6">Rider Dashboard</h1>
-      <p className="text-sm text-gray-500 mb-4">Welcome, {user?.name}</p>
-      {orders.toReversed().map(order => {
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Rider Dashboard</h1>
+          <p className="text-sm text-gray-500">Welcome, {user?.name}</p>
+        </div>
+        <button onClick={useCurrentLocation} disabled={locating} className="bg-blue-600 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50">
+          {locating ? 'Locating...' : 'Use my current location'}
+        </button>
+      </div>
+      {[...orders].reverse().map(order => {
         const next = getNextStatus(order.status, FLOW)
+        const restaurant = order.restaurant || MOCK_RESTAURANTS.find(r => r.id === order.restaurantId)
+        const hasMap = restaurant?.latitude
         return (
           <div key={order.id} className="border rounded-lg p-4 mb-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm text-gray-500">Order #{order.id}</p>
-                {order.items.map(item => (
-                  <p key={item.id} className="text-sm">{item.name} x{item.qty}</p>
+                {(order.items || []).map(item => (
+                  <p key={item.id || item.menuItemId} className="text-sm">{item.name || item.menuItem?.name} x{item.qty || item.quantity}</p>
                 ))}
                 <p className="font-medium mt-1">{formatPrice(order.total)}</p>
                 <p className="text-xs text-gray-500 mt-1">Deliver to: {order.address}</p>
@@ -61,6 +106,17 @@ export default function RiderDashboard() {
                 )}
               </div>
             </div>
+            {hasMap && (
+              <div className="mt-3">
+                <MapView
+                  restaurant={restaurant}
+                  delivery={order.deliveryLatitude ? { latitude: order.deliveryLatitude, longitude: order.deliveryLongitude } : null}
+                  rider={riderLocation}
+                  interactive={false}
+                  height="180px"
+                />
+              </div>
+            )}
           </div>
         )
       })}

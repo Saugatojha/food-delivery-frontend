@@ -1,40 +1,51 @@
-import { useState } from 'react'
-import { useAuth } from '../../context/AuthContext'
-import { MOCK_RESTAURANTS, MENUS, formatPrice } from '../../data/mock'
+import { useState, useEffect } from 'react'
+import { formatPrice } from '../../data/mock'
 import { useToast } from '../../context/ToastContext'
+import api from '../../api/client'
 
 export default function MenuManagement() {
-  const { user } = useAuth()
   const { showToast } = useToast()
-  const restaurant = MOCK_RESTAURANTS.find(r => r.ownerId === user.id)
-  const [items, setItems] = useState(MENUS[restaurant?.id] || [])
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [newItem, setNewItem] = useState({ name: '', price: '', desc: '' })
 
-  if (!restaurant) {
-    return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">No restaurant linked.</div>
-  }
+  useEffect(() => {
+    api.get('/owner/menu').then(({ data }) => {
+      setItems(data)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
 
-  const addItem = (e) => {
+  const addItem = async (e) => {
     e.preventDefault()
     if (!newItem.name || !newItem.price) return showToast('Name and price required', 'error')
-    const item = {
-      id: Date.now(),
-      name: newItem.name,
-      price: Number(newItem.price),
-      desc: newItem.desc,
+    try {
+      const { data } = await api.post('/owner/menu', { name: newItem.name, price: Number(newItem.price), desc: newItem.desc })
+      setItems(prev => [...prev, data])
+      setNewItem({ name: '', price: '', desc: '' })
+      setShowForm(false)
+      showToast('Item added to menu', 'success')
+    } catch {
+      showToast('Failed to add item', 'error')
     }
-    setItems(prev => [...prev, item])
-    MENUS[restaurant.id].push(item)
-    setNewItem({ name: '', price: '', desc: '' })
-    setShowForm(false)
-    showToast('Item added to menu', 'success')
   }
+
+  const deleteItem = async (id) => {
+    try {
+      await api.delete(`/owner/menu/${id}`)
+      setItems(prev => prev.filter(i => i.id !== id))
+      showToast('Item removed', 'success')
+    } catch {
+      showToast('Failed to delete item', 'error')
+    }
+  }
+
+  if (loading) return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">Loading...</div>
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Menu — {restaurant.name}</h1>
+        <h1 className="text-2xl font-bold">Menu</h1>
         <button onClick={() => setShowForm(!showForm)} className="bg-orange-500 text-white px-4 py-2 rounded text-sm">
           {showForm ? 'Cancel' : 'Add Item'}
         </button>
@@ -57,6 +68,7 @@ export default function MenuManagement() {
               {item.desc && <p className="text-sm text-gray-500">{item.desc}</p>}
               <p className="text-orange-600 font-medium text-sm mt-1">{formatPrice(item.price)}</p>
             </div>
+            <button onClick={() => deleteItem(item.id)} className="text-red-500 text-sm hover:underline">Delete</button>
           </div>
         ))}
       </div>

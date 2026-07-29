@@ -1,39 +1,46 @@
-import { useState } from 'react'
-import { useAuth } from '../../context/AuthContext'
-import { MOCK_RESTAURANTS, formatPrice } from '../../data/mock'
+import { useState, useEffect } from 'react'
+import { formatPrice } from '../../data/mock'
 import { useToast } from '../../context/ToastContext'
 import {
-  getOrdersForRestaurant,
   updateOrderStatus,
   STATUS_FLOWS,
   getNextStatus,
   isValidTransition,
 } from '../../services/orders'
+import api from '../../api/client'
 
 const FLOW = STATUS_FLOWS.owner
 
 export default function OwnerOrders() {
-  const { user } = useAuth()
   const { showToast } = useToast()
-  const restaurant = MOCK_RESTAURANTS.find(r => r.ownerId === user.id)
-  const [orders, setOrders] = useState(
-    restaurant ? getOrdersForRestaurant(restaurant.id) : []
-  )
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [restaurant, setRestaurant] = useState(null)
 
-  if (!restaurant) {
-    return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">No restaurant linked.</div>
-  }
+  useEffect(() => {
+    api.get('/owner/orders').then(({ data }) => {
+      setOrders(data)
+      if (data.length > 0) setRestaurant(data[0].restaurant || { name: 'Your Restaurant' })
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
 
-  const advanceOrder = (order) => {
+  const advanceOrder = async (order) => {
     const next = getNextStatus(order.status, FLOW)
     if (!next) return
     if (!isValidTransition(order.status, next, FLOW)) {
       return showToast('Invalid status transition', 'error')
     }
-    updateOrderStatus(order.id, next)
-    setOrders(getOrdersForRestaurant(restaurant.id))
-    showToast(`Order #${order.id} → ${next}`, 'success')
+    try {
+      await updateOrderStatus(order.id, next)
+      const { data } = await api.get('/owner/orders')
+      setOrders(data)
+      showToast(`Order #${order.id} → ${next}`, 'success')
+    } catch {
+      showToast('Failed to update order', 'error')
+    }
   }
+
+  if (loading) return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">Loading...</div>
 
   if (orders.length === 0) {
     return (
@@ -46,16 +53,16 @@ export default function OwnerOrders() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6">
-      <h1 className="text-2xl font-bold mb-6">Orders — {restaurant.name}</h1>
-      {orders.toReversed().map(order => {
+      <h1 className="text-2xl font-bold mb-6">Orders — {restaurant?.name || 'Your Restaurant'}</h1>
+      {[...orders].reverse().map(order => {
         const next = getNextStatus(order.status, FLOW)
         return (
           <div key={order.id} className="border rounded-lg p-4 mb-3">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm text-gray-500">Order #{order.id}</p>
-                {order.items.map(item => (
-                  <p key={item.id} className="text-sm">{item.name} x{item.qty} — {formatPrice(item.price * item.qty)}</p>
+                {(order.items || []).map(item => (
+                  <p key={item.id || item.menuItemId} className="text-sm">{item.name || item.menuItem?.name} x{item.qty || item.quantity} — {formatPrice((item.price || 0) * (item.qty || item.quantity || 1))}</p>
                 ))}
                 <p className="font-medium mt-1">{formatPrice(order.total)}</p>
                 <p className="text-xs text-gray-500 mt-1">{order.address}</p>

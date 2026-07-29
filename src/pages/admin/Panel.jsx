@@ -1,35 +1,51 @@
-import { useState } from 'react'
-import { MOCK_USERS, MOCK_RESTAURANTS, formatPrice } from '../../data/mock'
-import { getAllOrders } from '../../services/orders'
+import { useState, useEffect } from 'react'
+import { formatPrice } from '../../data/mock'
+import api from '../../api/client'
 
 export default function AdminPanel() {
-  const [orders] = useState(getAllOrders())
-  const users = MOCK_USERS
-  const restaurants = MOCK_RESTAURANTS
-  const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
+  const [stats, setStats] = useState(null)
+  const [users, setUsers] = useState([])
+  const [restaurants, setRestaurants] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/admin/stats'),
+      api.get('/admin/users'),
+      api.get('/admin/restaurants'),
+    ]).then(([statsRes, usersRes, restRes]) => {
+      setStats(statsRes.data)
+      setUsers(usersRes.data)
+      setRestaurants(restRes.data)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="max-w-6xl mx-auto p-6 text-center text-gray-500">Loading...</div>
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6">
       <h1 className="text-2xl font-bold mb-6">Admin Panel</h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
-        <div className="border rounded-lg p-4 bg-white">
-          <p className="text-sm text-gray-500">Users</p>
-          <p className="text-2xl font-bold">{users.length}</p>
+      {stats && (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+          <div className="border rounded-lg p-4 bg-white">
+            <p className="text-sm text-gray-500">Users</p>
+            <p className="text-2xl font-bold">{stats.users}</p>
+          </div>
+          <div className="border rounded-lg p-4 bg-white">
+            <p className="text-sm text-gray-500">Restaurants</p>
+            <p className="text-2xl font-bold">{stats.restaurants}</p>
+          </div>
+          <div className="border rounded-lg p-4 bg-white">
+            <p className="text-sm text-gray-500">Orders</p>
+            <p className="text-2xl font-bold">{stats.orders}</p>
+          </div>
+          <div className="border rounded-lg p-4 bg-white">
+            <p className="text-sm text-gray-500">Revenue</p>
+            <p className="text-2xl font-bold text-green-600">{formatPrice(stats.revenue)}</p>
+          </div>
         </div>
-        <div className="border rounded-lg p-4 bg-white">
-          <p className="text-sm text-gray-500">Restaurants</p>
-          <p className="text-2xl font-bold">{restaurants.length}</p>
-        </div>
-        <div className="border rounded-lg p-4 bg-white">
-          <p className="text-sm text-gray-500">Orders</p>
-          <p className="text-2xl font-bold">{orders.length}</p>
-        </div>
-        <div className="border rounded-lg p-4 bg-white">
-          <p className="text-sm text-gray-500">Revenue</p>
-          <p className="text-2xl font-bold text-green-600">{formatPrice(totalRevenue)}</p>
-        </div>
-      </div>
+      )}
 
       <section className="mb-8">
         <h2 className="font-semibold text-lg mb-3">Users</h2>

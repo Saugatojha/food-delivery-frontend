@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { mockGetRestaurants } from '../data/mock'
+import api from '../api/client'
 import { ListSkeleton } from '../components/LoadingSkeleton'
 import EmptyState from '../components/EmptyState'
 
 export default function Home() {
-  const [restaurants] = useState(mockGetRestaurants)
-  const [loading] = useState(false)
+  const [restaurants, setRestaurants] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.get('/restaurants').then(({ data }) => {
+      setRestaurants(data)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
 
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6">
@@ -23,7 +29,7 @@ export default function Home() {
               to={r.isOpen ? `/restaurant/${r.id}` : '#'}
               className={`border rounded-lg p-4 transition hover:shadow-md ${!r.isOpen ? 'opacity-50 pointer-events-none' : ''}`}
             >
-              <div className="text-3xl mb-2">{r.image}</div>
+              <div className="text-3xl mb-2">{r.image || '🍽'}</div>
               <h2 className="text-lg font-semibold">{r.name}</h2>
               <p className="text-sm text-gray-500">{r.cuisine}</p>
               <div className="flex justify-between mt-3 text-sm">

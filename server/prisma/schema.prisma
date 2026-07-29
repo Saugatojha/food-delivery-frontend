@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  password     String
+  role         String   @default("customer")
+  restaurantId Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orders          Order[]
+  ratings         Rating[]
+  restaurant      Restaurant? @relation("UserRestaurant", fields: [restaurantId], references: [id])
+  ownedRestaurant Restaurant? @relation("RestaurantOwner")
+}
+
+model Restaurant {
+  id          Int      @id @default(autoincrement())
+  name        String
+  cuisine     String
+  rating      Float    @default(0)
+  deliveryTime String  @default("25-35 min")
+  isOpen      Boolean  @default(true)
+  latitude    Float?
+  longitude   Float?
+  ownerId     Int?     @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner     User?      @relation("RestaurantOwner", fields: [ownerId], references: [id])
+  users     User[]     @relation("UserRestaurant")
+  menuItems MenuItem[]
+  orders    Order[]
+  ratings   Rating[]
+}
+
+model MenuItem {
+  id           Int      @id @default(autoincrement())
+  restaurantId Int
+  name         String
+  price        Float
+  desc         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id])
+  orderItems   OrderItem[]
+}
+
+model Order {
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  restaurantId       Int
+  total              Float
+  address            String
+  paymentMethod      String
+  status             String   @default("Pending")
+  deliveryEta        String?
+  deliveryLatitude   Float?
+  deliveryLongitude  Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id])
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id])
+  items      OrderItem[]
+  payment    Payment?
+  delivery   Delivery?
+  ratings    Rating[]
+}
+
+model OrderItem {
+  id         Int @id @default(autoincrement())
+  orderId    Int
+  menuItemId Int
+  quantity   Int
+  price      Float
+
+  order    Order    @relation(fields: [orderId], references: [id])
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  orderId       Int      @unique
+  method        String
+  status        String   @default("completed")
+  createdAt     DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+model Delivery {
+  id               Int      @id @default(autoincrement())
+  orderId          Int      @unique
+  riderId          Int?
+  status           String   @default("assigned")
+  address          String
+  riderLatitude    Float?
+  riderLongitude   Float?
+  locationUpdatedAt DateTime?
+  createdAt        DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+model Rating {
+  id           Int      @id @default(autoincrement())
+  orderId      Int
+  userId       Int
+  restaurantId Int
+  score        Int
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  order      Order      @relation(fields: [orderId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+}

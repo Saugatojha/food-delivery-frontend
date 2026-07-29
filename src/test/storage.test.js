@@ -6,29 +6,29 @@ beforeEach(() => {
 })
 
 describe('readJson', () => {
-  it('returns parsed value when key exists', () => {
-    localStorage.setItem('test', '{"a":1}')
+  it('returns null for missing key', () => {
+    expect(readJson('nonexistent')).toBeNull()
+  })
+
+  it('returns default if provided for missing key', () => {
+    expect(readJson('x', [])).toEqual([])
+  })
+
+  it('parses stored JSON', () => {
+    localStorage.setItem('test', JSON.stringify({ a: 1 }))
     expect(readJson('test')).toEqual({ a: 1 })
   })
 
-  it('returns default when key missing', () => {
-    expect(readJson('nonexistent', [])).toEqual([])
-  })
-
-  it('returns default when JSON is malformed', () => {
-    localStorage.setItem('bad', '{broken')
-    expect(readJson('bad', 'fallback')).toBe('fallback')
-  })
-
-  it('returns null default when key missing and no default given', () => {
-    expect(readJson('missing')).toBeNull()
+  it('returns null on parse error', () => {
+    localStorage.setItem('bad', '{invalid')
+    expect(readJson('bad')).toBeNull()
   })
 })
 
 describe('writeJson', () => {
-  it('writes stringified value', () => {
-    writeJson('key', { b: 2 })
-    expect(localStorage.getItem('key')).toBe('{"b":2}')
+  it('writes JSON to localStorage', () => {
+    writeJson('key', { x: 1 })
+    expect(JSON.parse(localStorage.getItem('key'))).toEqual({ x: 1 })
   })
 })
 

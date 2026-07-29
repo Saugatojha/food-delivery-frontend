@@ -1,48 +1,60 @@
-import { readJson, writeJson } from '../utils/storage'
+import api from '../api/client'
 
-const ORDERS_KEY = 'orders'
-
-export function getAllOrders() {
-  return readJson(ORDERS_KEY, [])
+export async function getAllOrders() {
+  const { data } = await api.get('/orders')
+  return data
 }
 
-export function getOrdersForRestaurant(restaurantId) {
-  return getAllOrders().filter(o =>
-    o.items.some(i => i.restaurantId === restaurantId)
-  )
+export async function getOrdersForRestaurant(restaurantId) {
+  const orders = await getAllOrders()
+  return orders.filter(o => o.restaurantId === restaurantId)
 }
 
-export function getOrdersForCustomer() {
+export async function getOrdersForCustomer() {
   return getAllOrders()
 }
 
-export function getAvailableDeliveries() {
-  return getAllOrders().filter(
-    o => o.status === 'Ready for Pickup' || o.status === 'Out for Delivery'
-  )
+export async function getAvailableDeliveries() {
+  const { data } = await api.get('/rider/deliveries')
+  return data
 }
 
-export function updateOrderStatus(orderId, newStatus) {
-  const orders = getAllOrders()
-  const idx = orders.findIndex(o => o.id === orderId)
-  if (idx === -1) throw new Error('Order not found')
-  orders[idx] = { ...orders[idx], status: newStatus }
-  writeJson(ORDERS_KEY, orders)
-  return orders[idx]
+export async function updateOrderStatus(orderId, newStatus) {
+  const { data } = await api.patch(`/orders/${orderId}/status`, { status: newStatus })
+  return data
 }
 
-export function saveOrder(order) {
-  const orders = getAllOrders()
-  orders.push(order)
-  writeJson(ORDERS_KEY, orders)
+export async function saveOrder(order) {
+  const { data } = await api.post('/orders', order)
+  return data
 }
 
 export function getCart() {
-  return readJson('cart', [])
+  try {
+    const raw = localStorage.getItem('cart')
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
 }
 
 export function saveCart(items) {
-  writeJson('cart', items)
+  localStorage.setItem('cart', JSON.stringify(items))
+}
+
+export async function submitOrder(orderPayload) {
+  const { data } = await api.post('/orders', {
+    items: orderPayload.items.map(i => ({
+      menuItemId: i.id || i.menuItemId,
+      restaurantId: i.restaurantId,
+      quantity: i.qty || i.quantity,
+    })),
+    address: orderPayload.address,
+    paymentMethod: orderPayload.paymentMethod,
+    deliveryLatitude: orderPayload.deliveryLatitude,
+    deliveryLongitude: orderPayload.deliveryLongitude,
+  })
+  return data
 }
 
 export const STATUS_FLOWS = {

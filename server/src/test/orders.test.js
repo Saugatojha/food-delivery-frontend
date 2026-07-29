@@ -1,0 +1,79 @@
+import request from 'supertest'
+import { describe, it, expect } from 'vitest'
+import app from '../index'
+
+async function getToken(email = 'john@test.com') {
+  const res = await request(app).post('/api/auth/login').send({ email, password: 'password' })
+  return res.body.token
+}
+
+describe('POST /api/orders', () => {
+  it('creates an order', async () => {
+    const token = await getToken()
+    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${token}`).send({
+      items: [{ menuItemId: 3, restaurantId: 1, quantity: 2 }],
+      address: '123 Test St',
+      paymentMethod: 'cash',
+      deliveryLatitude: 12.98,
+      deliveryLongitude: 77.6,
+    })
+    expect(res.status).toBe(201)
+    expect(res.body.status).toBe('Pending')
+    expect(res.body.total).toBeGreaterThan(0)
+    expect(res.body.deliveryLatitude).toBe(12.98)
+    expect(res.body.items).toHaveLength(1)
+  })
+
+  it('rejects without address', async () => {
+    const token = await getToken()
+    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${token}`).send({
+      items: [{ menuItemId: 3, restaurantId: 1, quantity: 1 }],
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects without auth', async () => {
+    const res = await request(app).post('/api/orders').send({ items: [], address: 'x' })
+    expect(res.status).toBe(401)
+  })
+})
+
+describe('GET /api/orders', () => {
+  it('returns customer orders', async () => {
+    const token = await getToken()
+    const res = await request(app).get('/api/orders').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.body)).toBe(true)
+  })
+})
+
+describe('PATCH /api/orders/:id/status', () => {
+  it('owner can advance order', async () => {
+    const customerToken = await getToken()
+    const order = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({
+      items: [{ menuItemId: 3, restaurantId: 1, quantity: 1 }],
+      address: '456 Oak St',
+      paymentMethod: 'card',
+    })
+    const orderId = order.body.id
+
+    const ownerToken = await getToken('owner@test.com')
+    const res = await request(app).patch(`/api/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Confirmed' })
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe('Confirmed')
+  })
+
+  it('rejects invalid transition', async () => {
+    const customerToken = await getToken()
+    const order = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({
+      items: [{ menuItemId: 3, restaurantId: 1, quantity: 1 }],
+      address: '789 Pine St',
+      paymentMethod: 'cash',
+    })
+    const orderId = order.body.id
+
+    const ownerToken = await getToken('owner@test.com')
+    const res = await request(app).patch(`/api/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Delivered' })
+    expect(res.status).toBe(403)
+  })
+})

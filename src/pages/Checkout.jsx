@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useToast } from '../context/ToastContext'
-import { formatPrice, calcTotal } from '../data/mock'
-import { getCart, saveCart, saveOrder } from '../services/orders'
+import { formatPrice, calcTotal, MOCK_RESTAURANTS } from '../data/mock'
+import { getCart, saveCart, submitOrder } from '../services/orders'
+import MapView from '../components/MapView'
 
 export default function Checkout() {
   const navigate = useNavigate()
@@ -10,33 +11,41 @@ export default function Checkout() {
   const [address, setAddress] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [placing, setPlacing] = useState(false)
+  const [deliveryPos, setDeliveryPos] = useState(null)
 
   const cart = getCart()
   const total = calcTotal(cart)
+  const restaurantId = cart[0]?.restaurantId
+  const restaurant = MOCK_RESTAURANTS.find(r => r.id === restaurantId)
 
   if (cart.length === 0) {
     return <Navigate to="/cart" replace />
   }
 
-  const placeOrder = () => {
+  const handleMapClick = (latlng) => { setDeliveryPos(latlng) }
+
+  const placeOrder = async () => {
     if (!address.trim()) return showToast('Enter a delivery address', 'error')
     if (placing) return
     setPlacing(true)
-    setTimeout(() => {
-      saveOrder({
-        id: Date.now(),
-        items: [...cart],
+    try {
+      const pos = deliveryPos || { lat: restaurant.latitude + 0.008, lng: restaurant.longitude + 0.005 }
+      await submitOrder({
+        items: cart,
         total,
         address: address.trim(),
         paymentMethod,
-        status: 'Pending',
-        deliveryEta: '30-40 min',
-        date: new Date().toISOString(),
+        deliveryLatitude: pos.lat,
+        deliveryLongitude: pos.lng,
       })
       saveCart([])
       showToast('Order placed successfully!', 'success')
       navigate('/orders')
-    }, 1500)
+    } catch {
+      showToast('Failed to place order', 'error')
+    } finally {
+      setPlacing(false)
+    }
   }
 
   return (
@@ -46,6 +55,21 @@ export default function Checkout() {
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
         <textarea className="border p-2 rounded w-full" rows="3" value={address} onChange={e => setAddress(e.target.value)} placeholder="Enter your full address" />
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Choose delivery location on map</label>
+        <MapView
+          center={[restaurant.latitude, restaurant.longitude]}
+          zoom={14}
+          restaurant={restaurant}
+          delivery={deliveryPos ? { latitude: deliveryPos.lat, longitude: deliveryPos.lng } : null}
+          onClick={handleMapClick}
+          height="280px"
+        />
+        {deliveryPos && (
+          <p className="text-xs text-gray-500 mt-1">Location selected: {deliveryPos.lat.toFixed(4)}, {deliveryPos.lng.toFixed(4)}</p>
+        )}
       </div>
 
       <div className="mb-6">

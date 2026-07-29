@@ -1,16 +1,24 @@
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { MOCK_RESTAURANTS, MENUS, formatPrice } from '../data/mock'
+import { formatPrice } from '../data/mock'
 import { getCart, saveCart } from '../services/orders'
+import api from '../api/client'
 import EmptyState from '../components/EmptyState'
 
 export default function Restaurant() {
   const { id } = useParams()
   const { user } = useAuth()
   const { showToast } = useToast()
-  const restaurant = MOCK_RESTAURANTS.find(r => r.id === Number(id))
-  const items = MENUS[Number(id)] || []
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.get(`/restaurants/${id}/menu`).then(({ data }) => {
+      setData(data)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [id])
 
   const addToCart = (item) => {
     if (!user) return showToast('Please login first', 'error')
@@ -19,15 +27,19 @@ export default function Restaurant() {
     if (existing) {
       existing.qty += 1
     } else {
-      cart.push({ ...item, restaurantId: Number(id), restaurantName: restaurant?.name, qty: 1 })
+      cart.push({ ...item, restaurantId: Number(id), restaurantName: data.restaurant.name, qty: 1 })
     }
     saveCart(cart)
     showToast(`${item.name} added to cart`, 'success')
   }
 
-  if (!restaurant) {
+  if (loading) return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">Loading...</div>
+
+  if (!data || !data.restaurant) {
     return <EmptyState icon="🔍" title="Restaurant not found" message={<Link to="/" className="text-orange-500">Go back</Link>} />
   }
+
+  const { restaurant, items } = data
 
   if (!restaurant.isOpen) {
     return <EmptyState icon="🔒" title="Restaurant is closed" message="This restaurant is not accepting orders right now." action={<Link to="/" className="text-orange-500 font-medium">Browse other restaurants</Link>} />
