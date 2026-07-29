@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { formatPrice } from '../../data/mock'
 import { useToast } from '../../context/ToastContext'
+import { CardSkeleton } from '../../components/LoadingSkeleton'
 import {
   updateOrderStatus,
   STATUS_FLOWS,
@@ -24,23 +25,22 @@ export default function OwnerOrders() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
-  const advanceOrder = async (order) => {
-    const next = getNextStatus(order.status, FLOW)
-    if (!next) return
-    if (!isValidTransition(order.status, next, FLOW)) {
-      return showToast('Invalid status transition', 'error')
-    }
+  const changeStatus = async (orderId, status) => {
     try {
-      await updateOrderStatus(order.id, next)
+      await updateOrderStatus(orderId, status)
       const { data } = await api.get('/owner/orders')
       setOrders(data)
-      showToast(`Order #${order.id} → ${next}`, 'success')
+      showToast(`Order #${orderId} → ${status}`, 'success')
     } catch {
       showToast('Failed to update order', 'error')
     }
   }
 
-  if (loading) return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">Loading...</div>
+  if (loading) return (
+    <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-3">
+      {Array.from({ length: 3 }, (_, i) => <CardSkeleton key={i} />)}
+    </div>
+  )
 
   if (orders.length === 0) {
     return (
@@ -68,14 +68,23 @@ export default function OwnerOrders() {
                 <p className="text-xs text-gray-500 mt-1">{order.address}</p>
               </div>
               <div className="text-right">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : order.status === 'Ready for Pickup' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : order.status === 'Ready for Pickup' ? 'bg-green-100 text-green-700' : order.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                   {order.status}
                 </span>
-                {next && (
-                  <button onClick={() => advanceOrder(order)} className="block mt-2 bg-orange-500 text-white px-3 py-1 rounded text-xs">
+                {order.status === 'Pending' ? (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => changeStatus(order.id, 'Confirmed')} className="bg-green-600 text-white px-3 py-1 rounded text-xs">
+                      Accept
+                    </button>
+                    <button onClick={() => changeStatus(order.id, 'Rejected')} className="bg-red-500 text-white px-3 py-1 rounded text-xs">
+                      Reject
+                    </button>
+                  </div>
+                ) : next ? (
+                  <button onClick={() => changeStatus(order.id, next)} className="block mt-2 bg-orange-500 text-white px-3 py-1 rounded text-xs">
                     Mark {next}
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

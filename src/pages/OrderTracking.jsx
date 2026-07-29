@@ -4,6 +4,7 @@ import { formatPrice, MOCK_RESTAURANTS } from '../data/mock'
 import { getAllOrders, STATUS_FLOWS } from '../services/orders'
 import MapView from '../components/MapView'
 import EmptyState from '../components/EmptyState'
+import { CardSkeleton } from '../components/LoadingSkeleton'
 
 const STEPS = STATUS_FLOWS.customer
 
@@ -33,7 +34,11 @@ export default function OrderTracking() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">Loading...</div>
+  if (loading) return (
+    <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-3">
+      {Array.from({ length: 2 }, (_, i) => <CardSkeleton key={i} />)}
+    </div>
+  )
 
   if (orders.length === 0) {
     return <EmptyState icon="📋" title="No orders yet" message="Place your first order to see it here" action={<Link to="/" className="bg-orange-500 text-white px-4 py-2 rounded inline-block">Browse restaurants</Link>} />

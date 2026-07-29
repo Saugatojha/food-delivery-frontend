@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatPrice } from '../../data/mock'
+import { CardSkeleton } from '../../components/LoadingSkeleton'
 import api from '../../api/client'
 
 export default function OwnerDashboard() {
@@ -16,7 +17,14 @@ export default function OwnerDashboard() {
 
   const pendingOrders = orders.filter(o => o.status === 'Pending' || o.status === 'Confirmed')
 
-  if (loading) return <div className="max-w-3xl mx-auto p-6 text-center text-gray-500">Loading...</div>
+  if (loading) return (
+    <div className="max-w-5xl mx-auto p-4 sm:p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {Array.from({ length: 3 }, (_, i) => <CardSkeleton key={i} />)}
+      </div>
+      <div className="space-y-3">{Array.from({ length: 2 }, (_, i) => <CardSkeleton key={i} />)}</div>
+    </div>
+  )
 
   if (!restaurant && orders.length === 0) {
     return (
