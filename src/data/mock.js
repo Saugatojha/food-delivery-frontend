@@ -6,12 +6,12 @@ export const MOCK_USERS = [
 ]
 
 export const MOCK_RESTAURANTS = [
-  { id: 1, name: 'Pizza Palace', cuisine: 'Italian', rating: 4.5, deliveryTime: '25-35 min', ownerId: 2, isOpen: true, image: '🍕' },
-  { id: 2, name: 'Burger Barn', cuisine: 'American', rating: 4.2, deliveryTime: '20-30 min', ownerId: null, isOpen: true, image: '🍔' },
-  { id: 3, name: 'Sushi Spot', cuisine: 'Japanese', rating: 4.7, deliveryTime: '30-40 min', ownerId: null, isOpen: true, image: '🍣' },
-  { id: 4, name: 'Taco Town', cuisine: 'Mexican', rating: 4.3, deliveryTime: '15-25 min', ownerId: null, isOpen: false, image: '🌮' },
-  { id: 5, name: 'Curry House', cuisine: 'Indian', rating: 4.6, deliveryTime: '25-35 min', ownerId: null, isOpen: true, image: '🍛' },
-  { id: 6, name: 'Noodle Nest', cuisine: 'Chinese', rating: 4.1, deliveryTime: '20-30 min', ownerId: null, isOpen: true, image: '🥡' },
+  { id: 1, name: 'Pizza Palace', cuisine: 'Italian', rating: 4.5, deliveryTime: '25-35 min', ownerId: 2, isOpen: true, image: 'Pizza' },
+  { id: 2, name: 'Burger Barn', cuisine: 'American', rating: 4.2, deliveryTime: '20-30 min', ownerId: null, isOpen: true, image: 'Burger' },
+  { id: 3, name: 'Sushi Spot', cuisine: 'Japanese', rating: 4.7, deliveryTime: '30-40 min', ownerId: null, isOpen: true, image: 'Sushi' },
+  { id: 4, name: 'Taco Town', cuisine: 'Mexican', rating: 4.3, deliveryTime: '15-25 min', ownerId: null, isOpen: false, image: 'Taco' },
+  { id: 5, name: 'Curry House', cuisine: 'Indian', rating: 4.6, deliveryTime: '25-35 min', ownerId: null, isOpen: true, image: 'Curry' },
+  { id: 6, name: 'Noodle Nest', cuisine: 'Chinese', rating: 4.1, deliveryTime: '20-30 min', ownerId: null, isOpen: true, image: 'Noodle' },
 ]
 
 export const MENUS = {

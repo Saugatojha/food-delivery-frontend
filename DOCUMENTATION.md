@@ -13,6 +13,8 @@ SmartServe is a food ordering platform prototype with four user roles: **Custome
 | Styling | Tailwind CSS 4 | Utility-first CSS |
 | Routing | React Router DOM 7 | Client-side navigation |
 | HTTP | Axios | API calls (configured, not connected) |
+| Lint | ESLint | React hooks + react-refresh rules |
+| Test | Vitest + Testing Library | Unit tests for utils, mock data, routes |
 | Auth | None (mock) | JWT-like flow mocked in memory/localStorage |
 
 ---
@@ -162,6 +164,7 @@ All mock data lives in `src/data/mock.js`.
 | 4 | API URL hardcoded | `import.meta.env.VITE_API_URL \|\| 'http://localhost:5000/api'` |
 | 5 | 401 hard redirect | Kept for now (standard pattern without React Router access in interceptors) |
 | 6 | Owner/rider duplicate localStorage logic | `src/services/orders.js` with shared `getAllOrders`, `updateOrderStatus`, transition validation |
+| 7 | No lint/test tooling | ESLint config + Vitest + 15 tests covering storage and mock helpers |
 
 ---
 
@@ -175,10 +178,10 @@ All mock data lives in `src/data/mock.js`.
 6. **No search/filter** — No search bar, cuisine filter, or sort on restaurant list.
 7. **No pagination** — All data loads at once.
 8. **Owner-restaurant linking** — Hardcoded via `ownerId`. No UI to manage this.
-9. **No image uploads** — Emoji placeholders only.
+9. **No image uploads** — Text-based placeholders shown (Pizza, Burger, etc.)
 10. **Loading states** — Wired but data is synchronous, so skeletons never trigger naturally.
 11. **Form validation** — Minimal. No email format or password strength checks.
-12. **No .env file** — `VITE_API_URL` fallback works but no `.env` file is committed.
+12. **Test coverage** — 15 tests cover storage utils and mock helpers, but route guards, checkout redirect, cart behavior, and order transitions are not tested yet.
 
 ---
 
@@ -207,4 +210,7 @@ cd C:\Users\admin\Desktop\food-delivery-frontend
 npm run dev       # Dev server with HMR
 npm run build     # Production build -> dist/
 npm run preview   # Preview production build
+npm run lint      # ESLint check
+npm run test      # Run tests once (CI)
+npm run test:watch  # Run tests in watch mode
 ```

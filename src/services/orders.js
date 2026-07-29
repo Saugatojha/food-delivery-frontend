@@ -58,5 +58,6 @@ export function isValidTransition(current, next, flow) {
 
 export function getNextStatus(current, flow) {
   const idx = flow.indexOf(current)
-  return idx < flow.length - 1 ? flow[idx + 1] : null
+  if (idx === -1 || idx >= flow.length - 1) return null
+  return flow[idx + 1]
 }
