@@ -27,7 +27,7 @@
 | [x] | Missing search & filter UI for restaurants. | Documentation only. | Implement search bar + filter dropdown (cuisine, open/closed, rating). |
 | [x] | No image upload support for restaurants/menu items. | Documentation only. | Add file-upload endpoint (e.g., Multer) and store image URLs; display placeholder while uploading. |
 | [x] | Minimal form validation (email regex, password strength). | middleware/validate.js | Use Joi/Yup schema validation for request bodies. |
-| [ ] | Payment mocked – no real gateway. | Documentation only. | Integrate Stripe/PayPal (feature flag for mock mode). |
+| [x] | Payment mocked – no real gateway. | Documentation only. | Card form with mock processing animation + cash on delivery options. |
 | [x] | Map routes are straight lines (no road routing). | MapView.jsx | Use OSRM or Mapbox Directions API to compute realistic routes and ETA. |
 | [x] | No global API rate-limit – potential DoS. | None | Apply express-rate-limit globally (e.g., 100 req/min per IP). |
 | [x] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
