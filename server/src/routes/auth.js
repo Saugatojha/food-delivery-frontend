@@ -54,12 +54,12 @@ function recordFailedAttempt(loginValue) {
   accountLockout.set(key, entry)
 }
 
-function setTokenCookie(res, token) {
-  res.cookie('token', token, {
+function setJwtCookie(res, token) {
+  res.cookie('jwt', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 2 * 60 * 60 * 1000,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 }
 
@@ -75,16 +75,17 @@ router.post('/register', registerLimiter, validate('name', 'email', 'password'),
     const existingName = await prisma.user.findFirst({ where: { name } })
     if (existingName) return conflict(res, 'Username already taken')
 
-    const hashed = await bcrypt.hash(password, 10)
+    const hashed = await bcrypt.hash(password, 12)
     const user = await prisma.user.create({
       data: { name, email, password: hashed, role: 'customer' },
     })
 
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
-    setTokenCookie(res, token)
+    setJwtCookie(res, token)
     setCsrfCookie(res, generateCsrfToken())
     res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId } })
   } catch (err) {
+    logger.error({ message: 'Register error', error: err.message, stack: err.stack })
     serverError(res, 'Registration failed')
   }
 })
@@ -100,24 +101,20 @@ router.post('/login', loginLimiter, checkLockout, validate('login', 'password'),
       ? await prisma.user.findUnique({ where: { email: identifier } })
       : await prisma.user.findFirst({ where: { name: identifier } })
 
-    if (!user) {
-      logger.warn(`login failed: user not found for "${loginValue}"`)
-      recordFailedAttempt(loginValue)
-      return unauthorized(res, 'Invalid email/username or password')
-    }
+    if (!user) return unauthorized(res, 'Invalid credentials')
 
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) {
-      logger.warn(`login failed: wrong password for "${loginValue}"`)
       recordFailedAttempt(loginValue)
-      return unauthorized(res, 'Invalid email/username or password')
+      return unauthorized(res, 'Invalid credentials')
     }
 
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
-    setTokenCookie(res, token)
+    setJwtCookie(res, token)
     setCsrfCookie(res, generateCsrfToken())
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId } })
   } catch (err) {
+    logger.error({ message: 'Login error', error: err.message, stack: err.stack })
     serverError(res, 'Login failed')
   }
 })
@@ -127,7 +124,7 @@ router.get('/me', authenticate, async (req, res) => {
 })
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' })
+  res.clearCookie('jwt', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' })
   res.json({ message: 'Logged out' })
 })
 

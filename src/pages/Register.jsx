@@ -22,7 +22,7 @@ export default function Register() {
   const navigate = useNavigate()
   const { register } = useAuth()
   const { showToast } = useToast()
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' })
+  const [form, setForm] = useState({ firstName: '', middleName: '', lastName: '', email: '', password: '', confirm: '' })
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [showPw, setShowPw] = useState(false)
@@ -31,7 +31,8 @@ export default function Register() {
 
   const validate = () => {
     const e = {}
-    if (!form.name.trim()) e.name = 'Name is required'
+    if (!form.firstName.trim()) e.firstName = 'First name is required'
+    if (!form.lastName.trim()) e.lastName = 'Last name is required'
     if (!form.email.trim()) e.email = 'Email is required'
     else if (!EMAIL_RE.test(form.email)) e.email = 'Invalid email format'
     if (!form.password) e.password = 'Password is required'
@@ -47,11 +48,14 @@ export default function Register() {
     if (!validate()) return
     setLoading(true)
     try {
-      await register(form.name, form.email, form.password)
+      const fullName = [form.firstName.trim(), form.middleName.trim(), form.lastName.trim()].filter(Boolean).join(' ')
+      await register(fullName, form.email, form.password)
       showToast('Account created!', 'success')
       navigate('/')
     } catch (err) {
-      showToast(err?.response?.data?.error || 'Registration failed', 'error')
+      const msg = err?.response ? (err.response.data?.error || 'Registration failed') : 'Cannot reach server — is it running on port 5000?'
+      showToast(msg, 'error')
+      console.error('Register error:', err)
     } finally {
       setLoading(false)
     }
@@ -80,19 +84,46 @@ export default function Register() {
     <div className="max-w-md mx-auto mt-10 p-6">
       <h1 className="text-2xl font-bold mb-6">Register</h1>
       <form onSubmit={handleSubmit} className="grid gap-4" aria-busy={loading} noValidate>
-        <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="reg-name">Full Name</label>
-          <input
-            id="reg-name"
-            className={`${INPUT} ${errors.name ? INPUT_ERR : ''}`}
-            autoComplete="name"
-            placeholder="John Doe"
-            value={form.name}
-            aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? 'reg-name-error' : undefined}
-            onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setErrors(p => ({ ...p, name: '' })) }}
-          />
-          {errors.name && <p id="reg-name-error" role="alert" className="text-red-600 text-xs mt-1">{errors.name}</p>}
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="reg-first">First</label>
+            <input
+              id="reg-first"
+              className={`${INPUT} ${errors.firstName ? INPUT_ERR : ''}`}
+              autoComplete="given-name"
+              placeholder="John"
+              value={form.firstName}
+              aria-invalid={!!errors.firstName}
+              aria-describedby={errors.firstName ? 'reg-first-error' : undefined}
+              onChange={e => { setForm(p => ({ ...p, firstName: e.target.value })); setErrors(p => ({ ...p, firstName: '' })) }}
+            />
+            {errors.firstName && <p id="reg-first-error" role="alert" className="text-red-600 text-xs mt-1">{errors.firstName}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="reg-middle">Middle</label>
+            <input
+              id="reg-middle"
+              className={INPUT}
+              autoComplete="additional-name"
+              placeholder="(opt)"
+              value={form.middleName}
+              onChange={e => { setForm(p => ({ ...p, middleName: e.target.value })) }}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="reg-last">Last</label>
+            <input
+              id="reg-last"
+              className={`${INPUT} ${errors.lastName ? INPUT_ERR : ''}`}
+              autoComplete="family-name"
+              placeholder="Doe"
+              value={form.lastName}
+              aria-invalid={!!errors.lastName}
+              aria-describedby={errors.lastName ? 'reg-last-error' : undefined}
+              onChange={e => { setForm(p => ({ ...p, lastName: e.target.value })); setErrors(p => ({ ...p, lastName: '' })) }}
+            />
+            {errors.lastName && <p id="reg-last-error" role="alert" className="text-red-600 text-xs mt-1">{errors.lastName}</p>}
+          </div>
         </div>
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="reg-email">Email Address</label>
