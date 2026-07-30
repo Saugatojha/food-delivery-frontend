@@ -12,10 +12,11 @@ describe('GET /api/restaurants', () => {
     const token = await getToken()
     const res = await request(app).get('/api/restaurants').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
-    expect(Array.isArray(res.body)).toBe(true)
-    expect(res.body.length).toBeGreaterThanOrEqual(6)
-    expect(res.body[0]).toHaveProperty('name')
-    expect(res.body[0]).toHaveProperty('latitude')
+    expect(Array.isArray(res.body.restaurants)).toBe(true)
+    expect(res.body.restaurants.length).toBeGreaterThanOrEqual(6)
+    expect(res.body.restaurants[0]).toHaveProperty('name')
+    expect(res.body.restaurants[0]).toHaveProperty('latitude')
+    expect(res.body.total).toBeGreaterThanOrEqual(6)
   })
 
   it('rejects without auth', async () => {

@@ -1,24 +1,34 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const rateLimit = require('express-rate-limit')
 const prisma = require('../config/database')
 const { jwtSecret, jwtExpiresIn } = require('../config/env')
 const { authenticate } = require('../middleware/auth')
 const { badRequest, conflict, unauthorized, serverError } = require('../utils/errors')
-const { validate } = require('../middleware/validate')
+const { validate, validatePasswordStrength } = require('../middleware/validate')
+const { generateCsrfToken, setCsrfCookie } = require('../middleware/csrf')
 
 const router = express.Router()
+
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many attempts. Try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 
 function setTokenCookie(res, token) {
   res.cookie('token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     maxAge: 2 * 60 * 60 * 1000,
   })
 }
 
-router.post('/register', validate('name', 'email', 'password'), async (req, res) => {
+router.post('/register', authLimiter, validate('name', 'email', 'password'), validatePasswordStrength, async (req, res) => {
   try {
     const name = req.body.name.trim()
     const email = req.body.email.trim().toLowerCase()
@@ -37,13 +47,14 @@ router.post('/register', validate('name', 'email', 'password'), async (req, res)
 
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
     setTokenCookie(res, token)
+    setCsrfCookie(res, generateCsrfToken())
     res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId } })
   } catch (err) {
     serverError(res, 'Registration failed')
   }
 })
 
-router.post('/login', validate('login', 'password'), async (req, res) => {
+router.post('/login', authLimiter, validate('login', 'password'), async (req, res) => {
   try {
     const loginValue = req.body.login.trim()
     const password = req.body.password
@@ -54,13 +65,20 @@ router.post('/login', validate('login', 'password'), async (req, res) => {
       ? await prisma.user.findUnique({ where: { email: identifier } })
       : await prisma.user.findFirst({ where: { name: identifier } })
 
-    if (!user) return unauthorized(res, 'Invalid email/username or password')
+    if (!user) {
+      console.warn(`[auth] login failed: user not found for "${loginValue}"`)
+      return unauthorized(res, 'Invalid email/username or password')
+    }
 
     const valid = await bcrypt.compare(password, user.password)
-    if (!valid) return unauthorized(res, 'Invalid email/username or password')
+    if (!valid) {
+      console.warn(`[auth] login failed: wrong password for "${loginValue}"`)
+      return unauthorized(res, 'Invalid email/username or password')
+    }
 
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
     setTokenCookie(res, token)
+    setCsrfCookie(res, generateCsrfToken())
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId } })
   } catch (err) {
     serverError(res, 'Login failed')
@@ -72,7 +90,7 @@ router.get('/me', authenticate, async (req, res) => {
 })
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' })
+  res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' })
   res.json({ message: 'Logged out' })
 })
 

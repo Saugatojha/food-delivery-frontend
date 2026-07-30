@@ -6,6 +6,19 @@ const api = axios.create({
   withCredentials: true,
 })
 
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/)
+  return match ? match[1] : null
+}
+
+api.interceptors.request.use((config) => {
+  if (['post', 'put', 'patch', 'delete'].includes(config.method)) {
+    const token = getCsrfToken()
+    if (token) config.headers['X-CSRF-Token'] = token
+  }
+  return config
+})
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {

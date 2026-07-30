@@ -4,7 +4,7 @@ import app from '../index'
 
 describe('POST /api/auth/register', () => {
   const ts = Date.now()
-  const newUser = { name: `Test User ${ts}`, email: `test${ts}@test.com`, password: 'secret123' }
+  const newUser = { name: `Test User ${ts}`, email: `test${ts}@test.com`, password: 'Secret123!' }
 
   it('registers a new user', async () => {
     const res = await request(app).post('/api/auth/register').send(newUser)

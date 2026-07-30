@@ -102,4 +102,35 @@ router.delete('/menu/:id', async (req, res) => {
   }
 })
 
+router.get('/restaurant', async (req, res) => {
+  try {
+    const r = await getRestaurant(req.user.id)
+    if (!r) return notFound(res, 'No restaurant linked')
+    res.json(r)
+  } catch (err) {
+    serverError(res, 'Failed to fetch restaurant')
+  }
+})
+
+router.patch('/restaurant', async (req, res) => {
+  try {
+    const restaurant = await getRestaurant(req.user.id)
+    if (!restaurant) return notFound(res, 'No restaurant linked')
+    const { name, cuisine, deliveryTime, isOpen, image } = req.body
+    const updated = await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: {
+        name: name || undefined,
+        cuisine: cuisine || undefined,
+        deliveryTime: deliveryTime || undefined,
+        isOpen: isOpen !== undefined ? isOpen : undefined,
+        image: image !== undefined ? image : undefined,
+      },
+    })
+    res.json(updated)
+  } catch (err) {
+    serverError(res, 'Failed to update restaurant')
+  }
+})
+
 module.exports = router

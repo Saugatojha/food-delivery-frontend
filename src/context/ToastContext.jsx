@@ -22,7 +22,7 @@ export function ToastProvider({ children }) {
       {children}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
         {toasts.map(t => (
-          <div key={t.id} className={`${bg[t.type] || bg.info} text-white px-4 py-2 rounded shadow-lg transition-all`}>
+          <div key={t.id} role="alert" aria-live="assertive" className={`${bg[t.type] || bg.info} text-white px-4 py-2 rounded shadow-lg transition-all`}>
             {t.message}
           </div>
         ))}
