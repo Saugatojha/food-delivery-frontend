@@ -26,6 +26,28 @@ describe('POST /api/auth/register', () => {
     expect(res.status).toBe(409)
     expect(res.body.error).toMatch(/registered/i)
   })
+
+  it('rejects weak password (no uppercase)', async () => {
+    const res = await request(app).post('/api/auth/register').send({ name: 'weak1', email: 'weak1@test.com', password: 'secret123!' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Password/i)
+  })
+
+  it('rejects weak password (no special char)', async () => {
+    const res = await request(app).post('/api/auth/register').send({ name: 'weak2', email: 'weak2@test.com', password: 'Secret123' })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects short password', async () => {
+    const res = await request(app).post('/api/auth/register').send({ name: 'weak3', email: 'weak3@test.com', password: 'Sh0rt!' })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects invalid email format', async () => {
+    const res = await request(app).post('/api/auth/register').send({ name: 'bademail', email: 'not-an-email', password: 'StrongPass1!' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/email/i)
+  })
 })
 
 describe('POST /api/auth/login', () => {
@@ -63,5 +85,17 @@ describe('GET /api/auth/me', () => {
   it('rejects invalid token', async () => {
     const res = await request(app).get('/api/auth/me').set('Authorization', 'Bearer bad-token')
     expect(res.status).toBe(401)
+  })
+})
+
+describe('POST /api/auth/register — rate limiting', () => {
+  let remaining
+  it('starts returning 429 after limit exceeded', async () => {
+    const payload = { name: 'ratelimit', email: 'ratelimit@test.com', password: 'StrongPass1!' }
+    for (let i = 0; i < 12; i++) {
+      const res = await request(app).post('/api/auth/register').send({ ...payload, name: `ratelimit${i}`, email: `ratelimit${i}@test.com` })
+      if (res.status === 429) remaining = i
+    }
+    expect(remaining).toBeGreaterThanOrEqual(9)
   })
 })

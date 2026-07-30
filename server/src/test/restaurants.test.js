@@ -23,6 +23,16 @@ describe('GET /api/restaurants', () => {
     const res = await request(app).get('/api/restaurants')
     expect(res.status).toBe(401)
   })
+
+  it('returns paginated structure', async () => {
+    const token = await getToken()
+    const res = await request(app).get('/api/restaurants?page=1&limit=3').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+    expect(res.body.restaurants.length).toBeLessThanOrEqual(3)
+    expect(res.body.total).toBeGreaterThanOrEqual(1)
+    expect(res.body.page).toBe(1)
+    expect(res.body.totalPages).toBeGreaterThanOrEqual(1)
+  })
 })
 
 describe('GET /api/restaurants/:id/menu', () => {

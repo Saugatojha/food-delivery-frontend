@@ -2,9 +2,11 @@ const express = require('express')
 const path = require('path')
 const cors = require('cors')
 const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
 const cookieParser = require('cookie-parser')
 const { port } = require('./config/env')
 const { csrfProtection } = require('./middleware/csrf')
+const logger = require('./config/logger')
 
 const authRoutes = require('./routes/auth')
 const restaurantRoutes = require('./routes/restaurants')
@@ -18,9 +20,28 @@ const uploadRoutes = require('./routes/upload')
 const app = express()
 
 app.use(helmet())
+
+if (process.env.NODE_ENV !== 'test') {
+  const globalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    message: { error: 'Too many requests. Try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+  app.use('/api', globalLimiter)
+}
+
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }))
 app.use(cookieParser())
 app.use(express.json())
+
+if (process.env.NODE_ENV !== 'test') {
+  app.use((req, res, next) => {
+    logger.info({ method: req.method, url: req.url, ip: req.ip })
+    next()
+  })
+}
 
 if (process.env.NODE_ENV === 'production') {
   app.enable('trust proxy')
@@ -47,7 +68,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }))
 
 if (require.main === module) {
   app.listen(port, () => {
-    console.log(`Server running on port ${port}`)
+    logger.info(`Server running on port ${port}`)
   })
 }
 

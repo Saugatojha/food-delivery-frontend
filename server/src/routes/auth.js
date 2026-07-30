@@ -8,16 +8,51 @@ const { authenticate } = require('../middleware/auth')
 const { badRequest, conflict, unauthorized, serverError } = require('../utils/errors')
 const { validate, validatePasswordStrength } = require('../middleware/validate')
 const { generateCsrfToken, setCsrfCookie } = require('../middleware/csrf')
+const logger = require('../config/logger')
 
 const router = express.Router()
 
-const authLimiter = rateLimit({
+const loginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many attempts. Try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+const registerLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 10,
   message: { error: 'Too many attempts. Try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 })
+
+const accountLockout = new Map()
+setInterval(() => {
+  for (const [key, entry] of accountLockout) {
+    if (Date.now() - entry.start > 15 * 60 * 1000) accountLockout.delete(key)
+  }
+}, 60 * 1000)
+
+function checkLockout(req, res, next) {
+  const loginValue = req.body.login?.trim().toLowerCase()
+  if (!loginValue) return next()
+  const entry = accountLockout.get(loginValue)
+  if (entry && entry.count >= 5 && Date.now() - entry.start < 15 * 60 * 1000) {
+    logger.warn(`account locked: ${loginValue}`)
+    return unauthorized(res, 'Invalid email/username or password')
+  }
+  next()
+}
+
+function recordFailedAttempt(loginValue) {
+  if (!loginValue) return
+  const key = loginValue.trim().toLowerCase()
+  const entry = accountLockout.get(key) || { count: 0, start: Date.now() }
+  entry.count++
+  accountLockout.set(key, entry)
+}
 
 function setTokenCookie(res, token) {
   res.cookie('token', token, {
@@ -28,7 +63,7 @@ function setTokenCookie(res, token) {
   })
 }
 
-router.post('/register', authLimiter, validate('name', 'email', 'password'), validatePasswordStrength, async (req, res) => {
+router.post('/register', registerLimiter, validate('name', 'email', 'password'), validatePasswordStrength, async (req, res) => {
   try {
     const name = req.body.name.trim()
     const email = req.body.email.trim().toLowerCase()
@@ -54,7 +89,7 @@ router.post('/register', authLimiter, validate('name', 'email', 'password'), val
   }
 })
 
-router.post('/login', authLimiter, validate('login', 'password'), async (req, res) => {
+router.post('/login', loginLimiter, checkLockout, validate('login', 'password'), async (req, res) => {
   try {
     const loginValue = req.body.login.trim()
     const password = req.body.password
@@ -66,13 +101,15 @@ router.post('/login', authLimiter, validate('login', 'password'), async (req, re
       : await prisma.user.findFirst({ where: { name: identifier } })
 
     if (!user) {
-      console.warn(`[auth] login failed: user not found for "${loginValue}"`)
+      logger.warn(`login failed: user not found for "${loginValue}"`)
+      recordFailedAttempt(loginValue)
       return unauthorized(res, 'Invalid email/username or password')
     }
 
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) {
-      console.warn(`[auth] login failed: wrong password for "${loginValue}"`)
+      logger.warn(`login failed: wrong password for "${loginValue}"`)
+      recordFailedAttempt(loginValue)
       return unauthorized(res, 'Invalid email/username or password')
     }
 

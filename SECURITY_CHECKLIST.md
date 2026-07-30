@@ -15,8 +15,8 @@
 | [x] | No HTTPS enforcement (plain HTTP allowed). | Front-end uses whatever VITE_API_URL is set to. | Force HTTPS in production, add HSTS header. |
 | [x] | Weak/Static JWT secret (dev value). | server/src/config/env.js (not shown) | Use a strong 256-bit secret from a secret manager; rotate periodically. |
 | [x] | No input sanitisation for free-text fields (restaurant name, menu). | Various routes (routes/*.js) | Validate/escape strings (whitelist chars, length limits). |
-| [ ] | No account lockout / password-reset throttling. | No password-reset flow. | Rate-limit reset requests; lock after repeated failures. |
-| [ ] | OpenStreetMap tile usage without attribution. | MapView.jsx | Add proper OSM attribution; consider a paid tile provider with API key. |
+| [x] | No account lockout / password-reset throttling. | No password-reset flow. | Rate-limit reset requests; lock after repeated failures. |
+| [x] | OpenStreetMap tile usage without attribution. | MapView.jsx | Add proper OSM attribution; consider a paid tile provider with API key. |
 
 ## 2️⃣ Functional / Reliability Improvements
 
@@ -28,12 +28,12 @@
 | [x] | No image upload support for restaurants/menu items. | Documentation only. | Add file-upload endpoint (e.g., Multer) and store image URLs; display placeholder while uploading. |
 | [x] | Minimal form validation (email regex, password strength). | middleware/validate.js | Use Joi/Yup schema validation for request bodies. |
 | [ ] | Payment mocked – no real gateway. | Documentation only. | Integrate Stripe/PayPal (feature flag for mock mode). |
-| [ ] | Map routes are straight lines (no road routing). | MapView.jsx | Use OSRM or Mapbox Directions API to compute realistic routes and ETA. |
-| [ ] | No global API rate-limit – potential DoS. | None | Apply express-rate-limit globally (e.g., 100 req/min per IP). |
-| [ ] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
+| [x] | Map routes are straight lines (no road routing). | MapView.jsx | Use OSRM or Mapbox Directions API to compute realistic routes and ETA. |
+| [x] | No global API rate-limit – potential DoS. | None | Apply express-rate-limit globally (e.g., 100 req/min per IP). |
+| [x] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
 | [ ] | SQLite used for dev only – not suitable for production concurrency. | Documentation. | Switch to PostgreSQL/MySQL for production; keep SQLite for CI/tests. |
 | [x] | Hard-coded owner-restaurant linking (no UI). | Documentation. | Create admin UI to assign owners to restaurants; store relation in DB. |
-| [ ] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 84 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
+| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 84 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
 
 ## 3️⃣ Performance / Scalability Enhancements
 
@@ -43,7 +43,7 @@
 | [ ] | No CDN for static assets (dist/). | Front-end built with Vite. | Deploy dist/ behind CloudFront/Azure CDN. |
 | [x] | No caching for read-only data (restaurants, menu). | API calls on each navigation. | Add Cache-Control / ETag headers; client memoisation. |
 | [ ] | Potential heavy Tailwind CSS (no purge). | Tailwind config. | Enable purge (content paths) or migrate to vanilla CSS if preferred. |
-| [ ] | Large components loaded eagerly (e.g., Leaflet). | MapView.jsx. | Dynamically import with React.lazy / Suspense. |
+| [ ] | Large components loaded eagerly (e.g., Leaflet). | MapView.jsx. | Dynamically import with React.lazy / Suspense. (Not done – needs deeper refactor across 6 importing files) |
 
 ## 4️⃣ Usability / Accessibility Fixes
 
