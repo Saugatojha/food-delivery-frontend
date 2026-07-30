@@ -15,7 +15,7 @@ export function ToastProvider({ children }) {
     }, 3000)
   }, [])
 
-  const bg = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-orange-500' }
+  const bg = { success: 'bg-green-700', error: 'bg-red-600', info: 'bg-orange-700' }
 
   return (
     <ToastContext.Provider value={{ showToast }}>
