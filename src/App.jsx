@@ -7,6 +7,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import RoleRoute from './components/RoleRoute'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
 import Home from './pages/Home'
 import Restaurant from './pages/Restaurant'
 import Cart from './pages/Cart'
@@ -28,6 +30,8 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
               <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
               <Route path="/restaurant/:id" element={<ProtectedRoute><Restaurant /></ProtectedRoute>} />
               <Route path="/cart" element={<RoleRoute roles={['customer']}><Cart /></RoleRoute>} />
