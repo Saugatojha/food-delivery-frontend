@@ -45,11 +45,9 @@ frontend/ (port 5173)
                    │              ├─ /cart -> RoleRoute(customer) -> Cart
                    │              ├─ /checkout -> RoleRoute(customer) -> Checkout (+ map + phone)
                    │              ├─ /orders -> RoleRoute(customer) -> OrderTracking (+ map)
-                   │              ├─ /owner -> RoleRoute(owner) -> OwnerDashboard
-                   │              ├─ /owner/menu -> RoleRoute(owner) -> OwnerMenu
-                   │              ├─ /owner/orders -> RoleRoute(owner) -> OwnerOrders
-                   │              ├─ /rider -> RoleRoute(rider) -> RiderDashboard (+ map + geolocation)
-                   │              └─ /admin -> RoleRoute(admin) -> AdminPanel
+                    │              ├─ /owner -> RoleRoute(owner) -> OwnerDashboard (Orders/Menu/Settings tabs)
+                    │              ├─ /rider -> RoleRoute(rider) -> RiderDashboard (Available/My Deliveries/Earnings tabs)
+                    │              └─ /admin -> RoleRoute(admin) -> AdminPanel (restaurant CRUD only)
 
 server/ (port 5000)
   src/
@@ -64,15 +62,17 @@ server/ (port 5000)
     │   ├── auth.js              POST /register (email normalized), POST /login (email normalized), GET /me
     │   ├── restaurants.js       GET /, GET /:id/menu
     │   ├── orders.js            POST / (accepts phone), GET /, GET /tracking/:id, PATCH /:id/status
-    │   ├── owner.js             GET /orders, GET /menu, POST /menu, PATCH /menu/:id, DELETE /menu/:id
-    │   ├── rider.js             GET /deliveries, PATCH /location
-    │   └── admin.js             GET /stats, GET /users, GET /restaurants
+    │   ├── owner.js             GET/POST/PATCH/DELETE /menu, GET /orders, PATCH /orders/:id/status
+    │   ├── rider.js             GET /deliveries, GET /my-deliveries, GET /earnings,
+    │   │                        PATCH /orders/:id/accept, PATCH /orders/:id/reject,
+    │   │                        PATCH /orders/:id/status, PATCH /location
+    │   └── admin.js             GET /users, GET /restaurants, POST/PATCH/DELETE /restaurants
     └── utils/
         ├── statusFlow.js        Role-based status transition validation
         └── errors.js            Consistent error response helpers
   prisma/
-    ├── schema.prisma            9 models (Order includes phone field)
-    ├── seed.js                  Seeds 4 users, 6 restaurants (Kathmandu coords), 18 menu items
+    ├── schema.prisma            9 models (MenuItem includes category field)
+    ├── seed.js                  Seeds 4 users, 7 restaurants (including Nepali), 26 menu items with categories
     ├── reset.js                 Refuses if server port 5000 in use, then deletes dev.db, re-runs migrations, re-seeds
     └── migrations/              SQLite migration files
 ```
@@ -85,6 +85,14 @@ A `SECURITY_CHECKLIST.md` is maintained at the project root covering 4 areas (se
 
 - **ProtectedRoute** — redirects to `/login` if no user in context. Saves intended path.
 - **RoleRoute** — accepts `roles` array. Redirects to `/login` if no user, or `/` if wrong role.
+
+### Post-Login Redirect
+
+After successful login, users are redirected by role:
+- **Rider** → `/rider` (delivery dashboard)
+- **Owner** → `/owner` (restaurant dashboard)
+- **Admin** → `/admin` (restaurant management)
+- **Customer** → `/` (Home page with restaurant listing)
 
 ---
 
@@ -113,21 +121,19 @@ src/
 ├── data/
 │   └── mock.js                   Backup mock data with Kathmandu coordinates.
 ├── pages/
-│   ├── Login.jsx                 Email/password with inline validation + toast on error.
-│   ├── Register.jsx              Name/email/password with inline validation.
-│   ├── Home.jsx                  Map showing all 6 restaurants + search by name/cuisine + cuisine filter chips + sort (Top Rated / Fastest Delivery / Open Now).
+│   ├── Login.jsx                 Email/password with inline validation + toast on error. Redirects by role after login.
+│   ├── Register.jsx              Name (first/middle/last) + email/password with inline validation.
+│   ├── Home.jsx                  Map showing all 7 restaurants + search by name/cuisine + cuisine filter chips (incl. Nepali) + sort.
 │   ├── Restaurant.jsx            Map showing restaurant location + menu items from API.
 │   ├── Cart.jsx                  Cart items with qty +/-/remove + total + empty state. LocalStorage.
-│   ├── Checkout.jsx              Phone + address + map picker + inline validation (red borders + error text). Sends delivery coords to API.
-│   ├── OrderTracking.jsx         5-step progress bar + map with markers + simulated rider + phone display.
+│   ├── Checkout.jsx              Phone + address + map picker + inline validation. Sends delivery coords to API.
+│   ├── OrderTracking.jsx         5-step progress bar + map + markers + simulated rider + phone display.
 │   ├── owner/
-│   │   ├── Dashboard.jsx         3 stats cards + pending list from API.
-│   │   ├── MenuManagement.jsx    List/add/delete menu items via API.
-│   │   └── Orders.jsx            Status flow with Accept/Reject buttons + phone display.
+│   │   └── Dashboard.jsx         3-tab: Orders (accept/decline with confirm modal + audio), Menu (category-grouped + add/edit), Settings.
 │   ├── rider/
-│   │   └── Dashboard.jsx         Available deliveries from API + geolocation button + per-order map + phone display.
+│   │   └── Dashboard.jsx         3-tab: Available (accept/pass, mini map), My Deliveries (status advance, live map), Earnings (daily/weekly/all-time).
 │   └── admin/
-│       └── Panel.jsx             4 stat cards + users table + restaurants grid from API.
+│       └── Panel.jsx             Restaurant CRUD only.
 ├── App.jsx                       Route definitions.
 ├── main.jsx                      ReactDOM.createRoot + BrowserRouter + Leaflet CSS.
 ├── e2e/
@@ -154,9 +160,9 @@ server/
 │   │   ├── auth.js               POST /api/auth/register (email normalized), POST /api/auth/login (email normalized), GET /api/auth/me
 │   │   ├── restaurants.js        GET /api/restaurants, GET /api/restaurants/:id/menu
 │   │   ├── orders.js             POST /api/orders (accepts phone), GET /api/orders, GET /api/orders/tracking/:id, PATCH /api/orders/:id/status
-│   │   ├── owner.js              GET /api/owner/orders, GET/POST/PATCH/DELETE /api/owner/menu
-│   │   ├── rider.js              GET /api/rider/deliveries, PATCH /api/rider/location
-│   │   └── admin.js              GET /api/admin/stats, GET /api/admin/users, GET /api/admin/restaurants
+│   │   ├── owner.js              GET /api/owner/restaurant, PATCH /api/owner/restaurant, GET /api/owner/orders, /api/owner/orders/:id/status, /api/owner/menu CRUD
+│   │   ├── rider.js              GET /api/rider/deliveries, GET /api/rider/my-deliveries, GET /api/rider/earnings, PATCH /api/rider/orders/:id/(accept|reject|status), PATCH /api/rider/location
+│   │   └── admin.js              GET /api/admin/users, GET/POST/PATCH/DELETE /api/admin/restaurants
 │   └── utils/
 │       ├── statusFlow.js         FLOWS per role, getNextStatus, isValidTransition, TERMINAL_STATUSES
 │       └── errors.js             error, badRequest, unauthorized, forbidden, notFound, conflict, serverError
@@ -197,16 +203,17 @@ Key contact field:
 | Rider Ram | rider@test.com | rider | Can update delivery status |
 | Admin User | admin@test.com | admin | Full system overview |
 
-**Restaurants:** 6 restaurants with Kathmandu-area coordinates, each with 3 menu items. Taco Town (ID 4) is `isOpen: false`. Each has a placeholder image via `placehold.co`.
+**Restaurants:** 7 restaurants with Kathmandu-area coordinates, each with categorized menu items at realistic NPR prices. Taco Town (ID 4) is `isOpen: false`. Each has a placeholder image via `placehold.co`.
 
-| Restaurant | Cuisine | Location (lat, lng) | Image |
-|---|---|---|---|
-| Pizza Palace | Italian | 27.7150, 85.3120 (Thamel) | ✅ |
-| Burger Barn | American | 27.7040, 85.3070 (Durbar Square) | ✅ |
-| Sushi Spot | Japanese | 27.6710, 85.3260 (Patan) | ✅ |
-| Taco Town | Mexican | 27.7210, 85.3620 (Boudhanath) | ✅ |
-| Curry House | Indian | 27.7100, 85.3480 (Pashupatinath) | ✅ |
-| Noodle Nest | Chinese | 27.6720, 85.4280 (Bhaktapur) | ✅ |
+| Restaurant | Cuisine | Location (lat, lng) | Items | Image |
+|---|---|---|---|---|
+| Pizza Palace | Italian | 27.7150, 85.3120 (Thamel) | Pizza x2, Appetizer | ✅ |
+| Burger Barn | American | 27.7040, 85.3070 (Durbar Square) | Burger x2, Fries | ✅ |
+| Sushi Spot | Japanese | 27.6710, 85.3260 (Patan) | Sushi x2, Appetizer | ✅ |
+| Taco Town | Mexican | 27.7210, 85.3620 (Boudhanath) | Taco, Quesadilla, Appetizer | ✅ |
+| Curry House | Indian | 27.7100, 85.3480 (Pashupatinath) | Curry, Bread, Rice | ✅ |
+| Noodle Nest | Chinese | 27.6720, 85.4280 (Bhaktapur) | Noodle, Rice, Appetizer | ✅ |
+| Momo House | Nepali | 27.7180, 85.3350 (Thamel) | Momo x3, Rice, Noodle, Appetizer, Beverage x2 | ✅ |
 
 ---
 
@@ -217,7 +224,7 @@ Roles progress through these statuses (one step at a time):
 | Role | Flow |
 |---|---|
 | Customer | Pending → Confirmed → Preparing → Out for Delivery → Delivered |
-| Owner | Pending → Confirmed → Preparing → Ready for Pickup |
+| Owner | Pending → Confirmed → Preparing → Ready for Pickup → Rejected |
 | Rider | Ready for Pickup → Out for Delivery → Delivered |
 
 Terminal statuses (cannot transition out): Delivered, Cancelled, Rejected.
@@ -258,35 +265,45 @@ Emails are normalized (trimmed + lowercased) on register and login.
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
+| GET | `/api/owner/restaurant` | — | `Restaurant` |
+| PATCH | `/api/owner/restaurant` | restaurant fields | `Restaurant` |
 | GET | `/api/owner/orders` | — | `[ Order ]` |
+| PATCH | `/api/owner/orders/:id/status` | `{ status }` | `Order` |
 | GET | `/api/owner/menu` | — | `[ MenuItem ]` |
-| POST | `/api/owner/menu` | `{ name, price, desc? }` | `MenuItem` |
-| PATCH | `/api/owner/menu/:id` | `{ name?, price?, desc? }` | `MenuItem` |
+| POST | `/api/owner/menu` | `{ name, price, category?, desc? }` | `MenuItem` |
+| PATCH | `/api/owner/menu/:id` | `{ name?, price?, category?, desc? }` | `MenuItem` |
 | DELETE | `/api/owner/menu/:id` | — | `{ message }` |
 
 ### Rider
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
-| GET | `/api/rider/deliveries` | — | `[ Order ]` |
+| GET | `/api/rider/deliveries` | — | `[ Order ]` (available for pickup) |
+| GET | `/api/rider/my-deliveries` | — | `[ Order ]` (rider's accepted deliveries) |
+| GET | `/api/rider/earnings` | — | `{ totalEarnings, totalDeliveries, dailyEarnings, dailyCount, weeklyEarnings, weeklyCount }` |
+| PATCH | `/api/rider/orders/:id/accept` | — | `Order` (assigns rider, status→Out for Delivery) |
+| PATCH | `/api/rider/orders/:id/reject` | — | `{ message }` (returns to pending) |
+| PATCH | `/api/rider/orders/:id/status` | `{ status }` | `Order` |
 | PATCH | `/api/rider/location` | `{ latitude, longitude }` | `Delivery` |
 
 ### Admin
 
-| Method | Endpoint | Response |
-|---|---|---|
-| GET | `/api/admin/stats` | `{ users, restaurants, orders, revenue }` |
-| GET | `/api/admin/users` | `[ User ]` |
-| GET | `/api/admin/restaurants` | `[ Restaurant ]` |
+| Method | Endpoint | Body | Response |
+|---|---|---|---|
+| GET | `/api/admin/users` | — | `[ User ]` |
+| GET | `/api/admin/restaurants` | — | `[ Restaurant ]` |
+| POST | `/api/admin/restaurants` | restaurant fields | `Restaurant` |
+| PATCH | `/api/admin/restaurants/:id` | restaurant fields | `Restaurant` |
+| DELETE | `/api/admin/restaurants/:id` | — | `{ message }` |
 
 ---
 
 ## Key Frontend Features
 
 ### Home Page
-- **Map** — Leaflet/OSM map showing all 6 restaurants as orange **R** markers at their Kathmandu locations. Click marker for popup with name + cuisine.
+- **Map** — Leaflet/OSM map showing all 7 restaurants as orange **R** markers at their Kathmandu locations. Click marker for popup with name + cuisine.
 - **Search** — Text filter by restaurant name or cuisine.
-- **Cuisine chips** — All / Italian / American / Japanese / Mexican / Indian / Chinese buttons.
+- **Cuisine chips** — All / Italian / American / Japanese / Mexican / Indian / Chinese / Nepali buttons.
 - **Sort** — Top Rated, Fastest Delivery, Open Now.
 - **Location label** — "Delivering to Kathmandu, Nepal".
 
@@ -312,6 +329,20 @@ Emails are trimmed and lowercased both on the frontend (AuthContext) and backend
 - **Placeholder URLs** — Each of the 6 restaurants has a `placehold.co` URL in seed data.
 - **Display** — Thumbnail image shown on Home cards and Restaurant detail page.
 
+### Cuisine-Based Menu Categories
+
+When a restaurant owner edits their menu, the available categories auto-filter based on the restaurant's cuisine type. These are defined in `CUISINE_CATEGORIES` in `src/data/mock.js`:
+
+| Cuisine | Categories |
+|---|---|
+| Italian | Pizza, Pasta, Salad, Dessert, Beverage |
+| American | Burger, Sandwich, Fries, Beverage, Dessert |
+| Japanese | Sushi, Roll, Noodle, Appetizer, Dessert |
+| Mexican | Taco, Quesadilla, Nachos, Burrito, Beverage |
+| Indian | Curry, Bread, Rice, Appetizer, Dessert, Beverage |
+| Chinese | Noodle, Rice, Dumpling, Appetizer, Soup |
+| Nepali | Momo, Curry, Rice, Dal Bhat, Appetizer, Beverage |
+
 ### OSRM Road Routing
 - **RoadRoute component** — Fetches driving route geometry from the public OSRM API (`router.project-osrm.org`).
 - **Real polyline** — Replaces the previous straight-line polyline with the actual road path.
@@ -330,10 +361,10 @@ Emails are trimmed and lowercased both on the frontend (AuthContext) and backend
 3. **No real payment** — Payment is mocked. No Stripe/PayPal integration.
 4. **No pagination** — All data loads at once.
 5. **No image uploads** — Placeholder images from `placehold.co`, no file upload.
-6. **Owner-restaurant linking** — Hardcoded via `ownerId`. No UI to manage this.
-7. **Rider assignment** — No automatic rider assignment when order reaches Ready for Pickup.
+6. **Owner-restaurant linking** — Hardcoded via `ownerId`. Admin panel allows assigning owners when adding/editing restaurants.
+7. **Rider assignment** — Manual accept/reject; no automatic dispatch.
 8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
-9. **Test coverage** — 43 backend tests + 41 frontend tests + Playwright config (e2e/ directory) = 84 unit tests.
+9. **Test coverage** — 49 backend tests + 41 frontend tests + Playwright config (e2e/ directory) = 90 unit tests.
 
 ---
 
@@ -344,7 +375,7 @@ Emails are trimmed and lowercased both on the frontend (AuthContext) and backend
 ```bash
 cd server
 npm run dev          # Dev server with nodemon on port 5000
-npm run test         # Vitest (43 tests)
+npm run test         # Vitest (49 tests)
 npm run seed         # Re-run seed data
 npm run reset        # Refuses if port 5000 in use, then delete dev.db, re-run migrations, re-seed
 npm run migrate      # Run prisma migrate dev
