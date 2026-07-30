@@ -19,8 +19,38 @@ export async function getAvailableDeliveries() {
   return data
 }
 
+export async function getMyDeliveries() {
+  const { data } = await api.get('/rider/my-deliveries')
+  return data
+}
+
 export async function updateOrderStatus(orderId, newStatus) {
   const { data } = await api.patch(`/orders/${orderId}/status`, { status: newStatus })
+  return data
+}
+
+export async function updateOwnerOrderStatus(orderId, newStatus) {
+  const { data } = await api.patch(`/owner/orders/${orderId}/status`, { status: newStatus })
+  return data
+}
+
+export async function updateRiderOrderStatus(orderId, newStatus) {
+  const { data } = await api.patch(`/rider/orders/${orderId}/status`, { status: newStatus })
+  return data
+}
+
+export async function acceptDelivery(orderId) {
+  const { data } = await api.patch(`/rider/orders/${orderId}/accept`)
+  return data
+}
+
+export async function rejectDelivery(orderId) {
+  const { data } = await api.patch(`/rider/orders/${orderId}/reject`)
+  return data
+}
+
+export async function getRiderEarnings() {
+  const { data } = await api.get('/rider/earnings')
   return data
 }
 

@@ -30,9 +30,10 @@ export default function Login() {
     if (!validate()) return
     setLoading(true)
     try {
-      await login(form.login, form.password)
+      const u = await login(form.login, form.password)
       showToast('Welcome back!', 'success')
-      navigate('/')
+      const roleRoutes = { rider: '/rider', owner: '/owner', admin: '/admin' }
+      navigate(roleRoutes[u.role] || '/')
     } catch {
       showToast('Invalid email/username or password', 'error')
     } finally {

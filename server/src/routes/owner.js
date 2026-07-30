@@ -1,8 +1,9 @@
 const express = require('express')
 const prisma = require('../config/database')
 const { authenticate, authorize } = require('../middleware/auth')
-const { notFound, serverError } = require('../utils/errors')
+const { notFound, badRequest, forbidden, serverError } = require('../utils/errors')
 const { validate } = require('../middleware/validate')
+const { isValidTransition, TERMINAL_STATUSES } = require('../utils/statusFlow')
 
 const router = express.Router()
 
@@ -130,6 +131,36 @@ router.patch('/restaurant', async (req, res) => {
     res.json(updated)
   } catch (err) {
     serverError(res, 'Failed to update restaurant')
+  }
+})
+
+router.patch('/orders/:id/status', validate('status'), async (req, res) => {
+  try {
+    const { status } = req.body
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const order = await prisma.order.findFirst({
+      where: { id: Number(req.params.id), restaurantId: restaurant.id },
+    })
+    if (!order) return notFound(res, 'Order not found')
+
+    if (TERMINAL_STATUSES.includes(order.status)) {
+      return badRequest(res, 'Cannot update a terminal order')
+    }
+
+    if (!isValidTransition(order.status, status, 'owner')) {
+      return forbidden(res, `Cannot transition from ${order.status} to ${status}`)
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { status },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
+    })
+    res.json(updated)
+  } catch (err) {
+    serverError(res, 'Failed to update order')
   }
 })
 

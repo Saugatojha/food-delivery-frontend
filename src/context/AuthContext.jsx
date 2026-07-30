@@ -22,6 +22,7 @@ export function AuthProvider({ children }) {
     const { data } = await api.post('/auth/login', { login: loginValue.trim(), password })
     writeJson('user', data.user)
     setUser(data.user)
+    return data.user
   }, [])
 
   const register = useCallback(async (name, email, password) => {

@@ -1,6 +1,6 @@
 const FLOWS = {
   customer: ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered'],
-  owner: ['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup'],
+  owner: ['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Rejected'],
   rider: ['Ready for Pickup', 'Out for Delivery', 'Delivered'],
 }
 

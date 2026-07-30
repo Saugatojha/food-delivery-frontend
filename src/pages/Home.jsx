@@ -5,7 +5,7 @@ import { ListSkeleton } from '../components/LoadingSkeleton'
 import EmptyState from '../components/EmptyState'
 import MapView from '../components/MapView'
 
-const CUISINES = ['All', 'Italian', 'American', 'Japanese', 'Mexican', 'Indian', 'Chinese']
+const CUISINES = ['All', 'Italian', 'American', 'Japanese', 'Mexican', 'Indian', 'Chinese', 'Nepali']
 
 export default function Home() {
   const [restaurants, setRestaurants] = useState([])
