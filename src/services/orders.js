@@ -73,6 +73,23 @@ export function saveCart(items) {
   window.dispatchEvent(new CustomEvent('cart-update'))
 }
 
+export function getDeliveryLocation() {
+  try {
+    const raw = localStorage.getItem('delivery-location')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function saveDeliveryLocation(location) {
+  localStorage.setItem('delivery-location', JSON.stringify(location))
+}
+
+export function clearDeliveryLocation() {
+  localStorage.removeItem('delivery-location')
+}
+
 export async function submitOrder(orderPayload) {
   const { data } = await api.post('/orders', {
     items: orderPayload.items.map(i => ({

@@ -22,7 +22,8 @@ export default function RiderDashboard() {
   const [myDeliveries, setMyDeliveries] = useState([])
   const [earnings, setEarnings] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [riderLocation, setRiderLocation] = useState(null)
+  const KATHMANDU = { latitude: 27.7100, longitude: 85.3400 }
+  const [riderLocation, setRiderLocation] = useState(KATHMANDU)
   const [locating, setLocating] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
 

@@ -28,7 +28,8 @@ router.post('/image', authenticate, (req, res) => {
       return res.status(400).json({ error: err.message })
     }
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
-    res.json({ url: `/uploads/${req.file.filename}` })
+    const origin = process.env.APP_URL || `${req.protocol}://${req.get('host') || 'localhost:5000'}`
+    res.json({ url: `${origin}/uploads/${req.file.filename}` })
   })
 })
 

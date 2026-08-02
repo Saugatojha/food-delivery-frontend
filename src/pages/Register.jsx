@@ -49,9 +49,12 @@ export default function Register() {
     setLoading(true)
     try {
       const fullName = [form.firstName.trim(), form.middleName.trim(), form.lastName.trim()].filter(Boolean).join(' ')
-      await register(fullName, form.email, form.password)
-      showToast('Account created!', 'success')
-      navigate('/')
+      const data = await register(fullName, form.email, form.password)
+      showToast('Account created! Check your email to verify.', 'success')
+      navigate(`/verify-email?email=${encodeURIComponent(form.email.trim().toLowerCase())}`)
+      if (data?.devLink) {
+        setTimeout(() => showToast(`Dev link: ${data.devLink}`, 'info'), 500)
+      }
     } catch (err) {
       const msg = err?.response ? (err.response.data?.error || 'Registration failed') : 'Cannot reach server — is it running on port 5000?'
       showToast(msg, 'error')

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, calcTotal, MOCK_RESTAURANTS } from '../data/mock'
-import { getCart, saveCart, submitOrder } from '../services/orders'
+import { getCart, saveCart, submitOrder, getDeliveryLocation, clearDeliveryLocation } from '../services/orders'
 import MapView from '../components/MapView'
 
 const PAYMENT_STEPS = ['Processing payment', 'Verifying card', 'Confirming order']
@@ -10,11 +10,12 @@ const PAYMENT_STEPS = ['Processing payment', 'Verifying card', 'Confirming order
 export default function Checkout() {
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const savedLocation = getDeliveryLocation()
   const [address, setAddress] = useState('')
   const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [placing, setPlacing] = useState(false)
-  const [deliveryPos, setDeliveryPos] = useState(null)
+  const [deliveryPos, setDeliveryPos] = useState(savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null)
   const [locating, setLocating] = useState(false)
   const [errors, setErrors] = useState({})
   const [card, setCard] = useState({ number: '', expiry: '', cvv: '' })
@@ -97,6 +98,7 @@ export default function Checkout() {
         deliveryLongitude: deliveryPos.lng,
       })
       saveCart([])
+      clearDeliveryLocation()
       showToast('Order placed successfully!', 'success')
       navigate('/orders')
     } catch {

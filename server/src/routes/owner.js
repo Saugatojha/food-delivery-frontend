@@ -4,6 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth')
 const { notFound, badRequest, forbidden, serverError } = require('../utils/errors')
 const { validate } = require('../middleware/validate')
 const { isValidTransition, TERMINAL_STATUSES } = require('../utils/statusFlow')
+const { notifyCustomer } = require('../utils/notify')
 
 const router = express.Router()
 
@@ -52,12 +53,12 @@ router.get('/menu', async (req, res) => {
 
 router.post('/menu', validate('name', 'price'), async (req, res) => {
   try {
-    const { name, price, desc } = req.body
+    const { name, price, category, subCategory, desc, image } = req.body
     const restaurant = await requireRestaurant(req.user.id, res)
     if (!restaurant) return
 
     const item = await prisma.menuItem.create({
-      data: { restaurantId: restaurant.id, name, price: Number(price), desc },
+      data: { restaurantId: restaurant.id, name, price: Number(price), category: category || 'General', subCategory: subCategory || 'General', desc, image },
     })
     res.status(201).json(item)
   } catch (err) {
@@ -67,7 +68,7 @@ router.post('/menu', validate('name', 'price'), async (req, res) => {
 
 router.patch('/menu/:id', async (req, res) => {
   try {
-    const { name, price, desc } = req.body
+    const { name, price, category, subCategory, desc, image } = req.body
     const restaurant = await requireRestaurant(req.user.id, res)
     if (!restaurant) return
 
@@ -78,7 +79,7 @@ router.patch('/menu/:id', async (req, res) => {
 
     const updated = await prisma.menuItem.update({
       where: { id: item.id },
-      data: { name, price: price ? Number(price) : undefined, desc },
+      data: { name, price: price ? Number(price) : undefined, category, subCategory, desc, image },
     })
     res.json(updated)
   } catch (err) {
@@ -159,6 +160,12 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
       include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
     })
     res.json(updated)
+
+    if (status === 'Confirmed') {
+      notifyCustomer(order, 'Order accepted', `Great news — order #${order.id} has been accepted by the restaurant.`)
+    } else if (status === 'Rejected') {
+      notifyCustomer(order, 'Order declined', `Sorry, order #${order.id} was declined by the restaurant.`)
+    }
   } catch (err) {
     serverError(res, 'Failed to update order')
   }

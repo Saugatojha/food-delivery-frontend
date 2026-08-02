@@ -36,13 +36,15 @@ frontend/ (port 5173)
                    ├─ ErrorBoundary
                    ├─ AuthProvider (user state)
                     │    └─ ToastProvider
-                    │         └─ Navbar (hamburger menu, cart badge, responsive)
-                    │         └─ <Routes>
+                    │         └─ NotificationProvider (in-app bell + browser push, polls unread-count)
+                    │              └─ Navbar (hamburger menu, cart badge, notification bell, responsive)
+                    │              └─ <Routes>
                    │              ├─ /login -> Login
                    │              ├─ /register -> Register
+                   │              ├─ /verify-email?token=&email= -> VerifyEmail
                    │              ├─ / -> ProtectedRoute -> Home (map + filters + sort)
                    │              ├─ /restaurant/:id -> ProtectedRoute -> Restaurant (map)
-                   │              ├─ /cart -> RoleRoute(customer) -> Cart
+                   │              ├─ /cart -> RoleRoute(customer) -> Cart (location picker → checkout)
                    │              ├─ /checkout -> RoleRoute(customer) -> Checkout (+ map + phone)
                    │              ├─ /orders -> RoleRoute(customer) -> OrderTracking (+ map)
                     │              ├─ /owner -> RoleRoute(owner) -> OwnerDashboard (Orders/Menu/Settings tabs)
@@ -59,20 +61,24 @@ server/ (port 5000)
     │   ├── auth.js              authenticate (JWT verify) + authorize (role check)
     │   └── validate.js          validate() / validateOptional() field checkers
     ├── routes/
-    │   ├── auth.js              POST /register (email normalized), POST /login (email normalized), GET /me
+    │   ├── auth.js              POST /register (email normalized, unverified), POST /login (403 EMAIL_NOT_VERIFIED until verified), GET /verify-email, POST /resend-verification, GET /me
     │   ├── restaurants.js       GET /, GET /:id/menu
     │   ├── orders.js            POST / (accepts phone), GET /, GET /tracking/:id, PATCH /:id/status
-    │   ├── owner.js             GET/POST/PATCH/DELETE /menu, GET /orders, PATCH /orders/:id/status
+    │   ├── notifications.js     GET /, GET /unread-count, PATCH /:id/read, POST /read-all
+    │   ├── upload.js            POST /image (multer → /uploads)
+    │   ├── owner.js             GET/POST/PATCH/DELETE /menu (+ image), GET /orders, PATCH /orders/:id/status
     │   ├── rider.js             GET /deliveries, GET /my-deliveries, GET /earnings,
     │   │                        PATCH /orders/:id/accept, PATCH /orders/:id/reject,
     │   │                        PATCH /orders/:id/status, PATCH /location
     │   └── admin.js             GET /users, GET /restaurants, POST/PATCH/DELETE /restaurants
     └── utils/
         ├── statusFlow.js        Role-based status transition validation
+        ├── mailer.js            sendVerificationEmail (dev: prints link to console)
+        ├── notify.js            createNotification, notifyRestaurantOwner, notifyCustomer
         └── errors.js            Consistent error response helpers
   prisma/
-    ├── schema.prisma            9 models (MenuItem includes category field)
-    ├── seed.js                  Seeds 4 users, 7 restaurants (including Nepali), 26 menu items with categories
+    ├── schema.prisma            10 models (MenuItem category + image, User email verification, Notification)
+    ├── seed.js                  Seeds 4 users (emailVerified: true), 7 restaurants (including Nepali), 26 menu items with categories
     ├── reset.js                 Refuses if server port 5000 in use, then deletes dev.db, re-runs migrations, re-seeds
     └── migrations/              SQLite migration files
 ```
@@ -103,30 +109,33 @@ src/
 ├── api/
 │   └── client.js                Axios -> VITE_API_URL (default localhost:5000/api). 401 clears auth + redirects.
 ├── context/
-│   ├── AuthContext.jsx           User state, login/register/logout via real API. Emails trimmed + lowercased.
-│   └── ToastContext.jsx          Toast notification system. Auto-dismiss after 3s.
+│   ├── AuthContext.jsx           User state, login/register/logout/verifyEmail/resendVerification via real API. Emails trimmed + lowercased.
+│   ├── ToastContext.jsx          Toast notification system. Auto-dismiss after 3s.
+│   └── NotificationContext.jsx   Polls /notifications/unread-count (15s), bell badge, Notification API browser push.
 ├── utils/
 │   ├── storage.js                Safe readJson/writeJson/removeKeys.
 │   └── leafletIcon.js            Fixes Leaflet default marker icon for Vite.
 ├── services/
-│   └── orders.js                 Async API calls + cart (localStorage with cart-update event) + status flow constants.
+│   └── orders.js                 Async API calls + cart (localStorage with cart-update event) + delivery-location storage + status flow constants.
 ├── components/
 │   ├── EmptyState.jsx            Reusable: icon + title + message + optional action.
 │   ├── ErrorBoundary.jsx         Catches render errors, shows reload button.
+│   ├── ImageUpload.jsx           Reusable image picker → POST /api/upload/image → returns URL.
 │   ├── LoadingSkeleton.jsx       CardSkeleton + ListSkeleton with pulse animation.
 │   ├── MapView.jsx               Leaflet map: multi-restaurant markers with popups OR single restaurant/delivery/rider + OSRM road route.
-│   ├── Navbar.jsx                Brand link + role-aware nav links + cart badge + user name + logout + hamburger menu.
+│   ├── Navbar.jsx                Brand link + role-aware nav links + cart badge + notification bell + user name + logout + hamburger menu.
 │   ├── ProtectedRoute.jsx        Auth gate.
 │   └── RoleRoute.jsx             Role gate.
 ├── data/
 │   └── mock.js                   Backup mock data with Kathmandu coordinates.
 ├── pages/
-│   ├── Login.jsx                 Email/password with inline validation + toast on error. Redirects by role after login.
-│   ├── Register.jsx              Name (first/middle/last) + email/password with inline validation.
+│   ├── Login.jsx                 Email/password with inline validation + toast on error. Redirects by role after login. Shows "verify email" banner on EMAIL_NOT_VERIFIED.
+│   ├── Register.jsx              Name (first/middle/last) + email/password with inline validation. On success → /verify-email.
+│   ├── VerifyEmail.jsx           Consumes GET /auth/verify-email?token=, resend link UI.
 │   ├── Home.jsx                  Map showing all 7 restaurants + search by name/cuisine + cuisine filter chips (incl. Nepali) + sort.
-│   ├── Restaurant.jsx            Map showing restaurant location + menu items from API.
-│   ├── Cart.jsx                  Cart items with qty +/-/remove + total + empty state. LocalStorage.
-│   ├── Checkout.jsx              Phone + address + map picker + inline validation. Sends delivery coords to API.
+│   ├── Restaurant.jsx            Map showing restaurant location + menu items (with images) from API.
+│   ├── Cart.jsx                  Cart items with qty +/-/remove + total + empty state + delivery-location map picker → proceeds to checkout.
+│   ├── Checkout.jsx              Phone + address + map picker (prefilled from cart location) + inline validation. Sends delivery coords to API.
 │   ├── OrderTracking.jsx         5-step progress bar + map + markers + simulated rider + phone display.
 │   ├── owner/
 │   │   └── Dashboard.jsx         3-tab: Orders (accept/decline with confirm modal + audio), Menu (category-grouped + add/edit), Settings.
@@ -157,18 +166,22 @@ server/
 │   │   ├── auth.js               authenticate (JWT verify via Authorization header) + authorize (role check).
 │   │   └── validate.js           validate() / validateOptional() field checkers.
 │   ├── routes/
-│   │   ├── auth.js               POST /api/auth/register (email normalized), POST /api/auth/login (email normalized), GET /api/auth/me
+│   │   ├── auth.js               POST /api/auth/register, POST /api/auth/login, GET /api/auth/verify-email?token=, POST /api/auth/resend-verification, GET /api/auth/me
 │   │   ├── restaurants.js        GET /api/restaurants, GET /api/restaurants/:id/menu
 │   │   ├── orders.js             POST /api/orders (accepts phone), GET /api/orders, GET /api/orders/tracking/:id, PATCH /api/orders/:id/status
-│   │   ├── owner.js              GET /api/owner/restaurant, PATCH /api/owner/restaurant, GET /api/owner/orders, /api/owner/orders/:id/status, /api/owner/menu CRUD
+│   │   ├── notifications.js      GET /api/notifications, GET /api/notifications/unread-count, PATCH /api/notifications/:id/read, POST /api/notifications/read-all
+│   │   ├── upload.js             POST /api/upload/image (multipart, max 5MB, jpeg/png/gif/webp) → { url }
+│   │   ├── owner.js              GET /api/owner/restaurant, PATCH /api/owner/restaurant, GET /api/owner/orders, /api/owner/orders/:id/status, /api/owner/menu CRUD (+ image)
 │   │   ├── rider.js              GET /api/rider/deliveries, GET /api/rider/my-deliveries, GET /api/rider/earnings, PATCH /api/rider/orders/:id/(accept|reject|status), PATCH /api/rider/location
 │   │   └── admin.js              GET /api/admin/users, GET/POST/PATCH/DELETE /api/admin/restaurants
 │   └── utils/
 │       ├── statusFlow.js         FLOWS per role, getNextStatus, isValidTransition, TERMINAL_STATUSES
+│       ├── mailer.js             sendVerificationEmail — prints dev link, no-op in production
+│       ├── notify.js             createNotification + notifyRestaurantOwner + notifyCustomer
 │       └── errors.js             error, badRequest, unauthorized, forbidden, notFound, conflict, serverError
 ├── prisma/
-│   ├── schema.prisma             9 models (Order.phone added)
-│   ├── seed.js                   Seeds demo data (Kathmandu coords)
+│   ├── schema.prisma             10 models (User emailVerified/verificationToken, MenuItem.image, Notification)
+│   ├── seed.js                   Seeds demo data (Kathmandu coords, emailVerified users)
 │   ├── reset.js                  Port-5000 guard, then deletes dev.db, re-runs migrations, re-seeds
 │   └── migrations/               Auto-generated by prisma migrate
 ├── prisma.config.ts              Prisma 7 config
@@ -180,7 +193,7 @@ server/
 
 ## Prisma Schema
 
-9 models: User, Restaurant, MenuItem, Order, OrderItem, Payment, Delivery, Rating.
+10 models: User, Restaurant, MenuItem, Order, OrderItem, Payment, Delivery, Rating, Notification.
 
 Key coordinate fields (for map feature):
 - `Restaurant.latitude` / `Restaurant.longitude`
@@ -190,6 +203,12 @@ Key coordinate fields (for map feature):
 Key contact field:
 - `Order.phone` — Customer phone number for delivery contact
 
+Email verification fields:
+- `User.emailVerified` / `User.verificationToken` / `User.verificationExpires`
+
+Notification fields:
+- `Notification.userId` / `title` / `message` / `type` / `orderId` / `read` / `createdAt`
+
 ---
 
 ## Seed Data
@@ -198,10 +217,12 @@ Key contact field:
 
 | Name | Email | Role | Notes |
 |---|---|---|---|
-| John Doe | john@test.com | customer | Default customer |
-| Pizza Palace | owner@test.com | owner | Linked to restaurant ID 1 |
-| Rider Ram | rider@test.com | rider | Can update delivery status |
-| Admin User | admin@test.com | admin | Full system overview |
+| John Doe | john@test.com | customer | Default customer (emailVerified) |
+| Pizza Palace | owner@test.com | owner | Linked to restaurant ID 1 (emailVerified) |
+| Rider Ram | rider@test.com | rider | Can update delivery status (emailVerified) |
+| Admin User | admin@test.com | admin | Full system overview (emailVerified) |
+
+> All seed users are created with `emailVerified: true`, so demo logins work without verification. New registrations require email verification before login (dev mailer prints the link to the server console).
 
 **Restaurants:** 7 restaurants with Kathmandu-area coordinates, each with categorized menu items at realistic NPR prices. Taco Town (ID 4) is `isOpen: false`. Each has a placeholder image via `placehold.co`.
 
@@ -239,11 +260,13 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
-| POST | `/api/auth/register` | `{ name, email, password }` | `{ token, user }` |
-| POST | `/api/auth/login` | `{ email, password }` | `{ token, user }` |
+| POST | `/api/auth/register` | `{ name, email, password }` | `201 { message, user: { emailVerified: false }, devLink? }` (no token — must verify email) |
+| POST | `/api/auth/login` | `{ login, password }` | `{ token, user }` or `403 { code: 'EMAIL_NOT_VERIFIED', email }` |
+| GET | `/api/auth/verify-email?token=` | — | `{ message }` (marks email verified) |
+| POST | `/api/auth/resend-verification` | `{ login }` | `{ message, devLink? }` |
 | GET | `/api/auth/me` | — | `{ user }` |
 
-Emails are normalized (trimmed + lowercased) on register and login.
+Emails are normalized (trimmed + lowercased) on register and login. New users must verify their email before the first login. In dev (`NODE_ENV !== 'production'`), `mailer.js` prints the verification URL to the server console instead of sending real email; the frontend also surfaces it as a `devLink`.
 
 ### Restaurants
 
@@ -256,10 +279,29 @@ Emails are normalized (trimmed + lowercased) on register and login.
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
-| POST | `/api/orders` | `{ items: [{ menuItemId, restaurantId, quantity }], address, phone?, paymentMethod, deliveryLatitude?, deliveryLongitude? }` | `Order` |
+| POST | `/api/orders` | `{ items: [{ menuItemId, restaurantId, quantity }], address, phone?, paymentMethod, deliveryLatitude?, deliveryLongitude? }` | `Order` (owner gets a "New order received" notification) |
 | GET | `/api/orders` | — | `[ Order ]` |
 | GET | `/api/orders/tracking/:id` | — | `Order` with restaurant/delivery coords |
 | PATCH | `/api/orders/:id/status` | `{ status }` | `Order` |
+
+### Notifications
+
+| Method | Endpoint | Response |
+|---|---|---|
+| GET | `/api/notifications` | `[ Notification ]` (latest 50) |
+| GET | `/api/notifications/unread-count` | `{ count }` |
+| PATCH | `/api/notifications/:id/read` | `Notification` |
+| POST | `/api/notifications/read-all` | `{ message }` |
+
+Notifications are created for: new order (owner), order Confirmed/Rejected (customer), Out for Delivery/Delivered (customer).
+
+### Upload
+
+| Method | Endpoint | Body | Response |
+|---|---|---|---|
+| POST | `/api/upload/image` | multipart `image` (max 5MB, jpeg/png/gif/webp) | `{ url }` |
+
+Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The returned URL is absolute (uses `APP_URL` or request host).
 
 ### Owner
 
@@ -270,8 +312,8 @@ Emails are normalized (trimmed + lowercased) on register and login.
 | GET | `/api/owner/orders` | — | `[ Order ]` |
 | PATCH | `/api/owner/orders/:id/status` | `{ status }` | `Order` |
 | GET | `/api/owner/menu` | — | `[ MenuItem ]` |
-| POST | `/api/owner/menu` | `{ name, price, category?, desc? }` | `MenuItem` |
-| PATCH | `/api/owner/menu/:id` | `{ name?, price?, category?, desc? }` | `MenuItem` |
+| POST | `/api/owner/menu` | `{ name, price, category?, desc?, image? }` | `MenuItem` |
+| PATCH | `/api/owner/menu/:id` | `{ name?, price?, category?, desc?, image? }` | `MenuItem` |
 | DELETE | `/api/owner/menu/:id` | — | `{ message }` |
 
 ### Rider
@@ -311,6 +353,32 @@ Emails are normalized (trimmed + lowercased) on register and login.
 - **Phone number** — Required field with format validation (7-15 digits).
 - **Inline validation** — Red borders + error messages for missing address, phone, map location, or closed restaurant.
 - **Cart badge** — Navbar shows live item count via `cart-update` custom event.
+
+### Cart → Delivery Location (Feature 1)
+- The Cart page shows a **map location picker** ("1. Choose your delivery location") before checkout.
+- The customer clicks the map (or "Use current location") to drop a delivery pin.
+- The chosen location is persisted to localStorage (`delivery-location`) and prefilled on the Checkout page map.
+- "2. Proceed to Checkout" navigates to `/checkout`; the saved location is cleared after the order is placed.
+
+### Email Verification (Feature 2)
+- **Register** creates an unverified account (`emailVerified: false`) and does **not** log the user in or return a token. The response includes a `devLink` (dev mode only).
+- **Login** returns `403 { code: 'EMAIL_NOT_VERIFIED', email }` until the account is verified. Login shows a banner with a "Resend verification link" action.
+- **Verify page** (`/verify-email`) consumes `GET /api/auth/verify-email?token=`, shows success/error, and offers resend.
+- **Resend** (`POST /api/auth/resend-verification`) rotates the token and prints a new dev link.
+- **Dev mailer** (`server/src/utils/mailer.js`) prints `http://localhost:5000/api/auth/verify-email?token=...` to the server console; production is a no-op placeholder.
+- Seed users are pre-verified so demo logins still work.
+
+### Notifications (Feature 3)
+- **In-app bell** in the Navbar polls `/api/notifications/unread-count` every 15s, shows an unread badge, and a dropdown list. Mark-read and mark-all-read actions are wired.
+- **Browser push** — on an unread-count increase, the frontend requests the `Notification` permission once and shows a browser notification (title + message). Works while the tab is open.
+- **Events**: owner receives "New order received" on order create; customer receives notifications when an order is **Confirmed**, **Rejected**, **Out for Delivery**, and **Delivered**.
+
+### Image Uploads (Feature 4)
+- **Upload API** — `POST /api/upload/image` (multer, 5MB max, jpeg/png/gif/webp) stores files in `server/uploads/` and returns an absolute URL.
+- **ImageUpload component** (`src/components/ImageUpload.jsx`) — reusable file picker with preview, used in:
+  - Owner **Settings** tab (restaurant image).
+  - Owner **Menu** add/edit forms (per-item images, both Dashboard tab and `/owner/menu` page).
+- **Display** — menu item thumbnails appear in the owner menu lists, Cart, and the customer Restaurant page.
 
 ### Email Normalization
 Emails are trimmed and lowercased both on the frontend (AuthContext) and backend (auth routes), so `John@Test.com` matches `john@test.com`.
@@ -360,11 +428,11 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 2. **Cart is localStorage** — Cart persists locally but doesn't sync across devices (no backend cart API).
 3. **No real payment** — Payment is mocked. No Stripe/PayPal integration.
 4. **No pagination** — All data loads at once.
-5. **No image uploads** — Placeholder images from `placehold.co`, no file upload.
+5. **Email verification is dev-only** — `mailer.js` prints verification links to the server console instead of sending real email; wire up an SMTP provider for production.
 6. **Owner-restaurant linking** — Hardcoded via `ownerId`. Admin panel allows assigning owners when adding/editing restaurants.
 7. **Rider assignment** — Manual accept/reject; no automatic dispatch.
 8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
-9. **Test coverage** — 49 backend tests + 41 frontend tests + Playwright config (e2e/ directory) = 90 unit tests.
+9. **Test coverage** — 50 backend tests + 41 frontend tests + Playwright config (e2e/ directory).
 
 ---
 
@@ -375,7 +443,7 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 ```bash
 cd server
 npm run dev          # Dev server with nodemon on port 5000
-npm run test         # Vitest (49 tests)
+npm run test         # Vitest (50 tests)
 npm run seed         # Re-run seed data
 npm run reset        # Refuses if port 5000 in use, then delete dev.db, re-run migrations, re-seed
 npm run migrate      # Run prisma migrate dev

@@ -4,6 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth')
 const { badRequest, notFound, serverError } = require('../utils/errors')
 const { validate } = require('../middleware/validate')
 const { isValidTransition, TERMINAL_STATUSES } = require('../utils/statusFlow')
+const { notifyCustomer } = require('../utils/notify')
 
 const router = express.Router()
 
@@ -56,6 +57,12 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
       include: { items: { include: { menuItem: true } }, payment: true, delivery: true, restaurant: true },
     })
     res.json(updated)
+
+    if (status === 'Out for Delivery') {
+      notifyCustomer(order, 'Out for delivery', `Your rider is on the way with order #${order.id}.`)
+    } else if (status === 'Delivered') {
+      notifyCustomer(order, 'Order delivered', `Order #${order.id} has been delivered. Enjoy your meal!`)
+    }
   } catch (err) {
     serverError(res, 'Failed to update delivery status')
   }

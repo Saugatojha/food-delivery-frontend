@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
-import { formatPrice, CUISINE_CATEGORIES } from '../../data/mock'
+import { formatPrice, CUISINE_CATEGORIES, CATEGORY_SUBCATEGORIES } from '../../data/mock'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
+import ImageUpload from '../../components/ImageUpload'
 import api from '../../api/client'
 import { updateOwnerOrderStatus } from '../../services/orders'
 
@@ -33,7 +34,7 @@ export default function OwnerDashboard() {
   const [settingsForm, setSettingsForm] = useState({})
   const [editingSettings, setEditingSettings] = useState(false)
 
-  const [newItem, setNewItem] = useState({ name: '', category: '', price: '', desc: '' })
+  const [newItem, setNewItem] = useState({ name: '', category: '', subCategory: '', price: '', desc: '', image: '' })
   const [editingItem, setEditingItem] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
 
@@ -101,10 +102,12 @@ export default function OwnerDashboard() {
       await api.post('/owner/menu', {
         name: newItem.name,
         category: newItem.category || 'General',
+        subCategory: newItem.subCategory || 'General',
         price: Number(newItem.price),
         desc: newItem.desc,
+        image: newItem.image || undefined,
       })
-      setNewItem({ name: '', category: '', price: '', desc: '' })
+      setNewItem({ name: '', category: '', subCategory: '', price: '', desc: '', image: '' })
       showToast('Menu item added', 'success')
       fetchData()
     } catch {
@@ -119,8 +122,10 @@ export default function OwnerDashboard() {
       await api.patch(`/owner/menu/${editingItem.id}`, {
         name: editingItem.name,
         category: editingItem.category,
+        subCategory: editingItem.subCategory,
         price: Number(editingItem.price),
         desc: editingItem.desc,
+        image: editingItem.image || undefined,
       })
       setEditingItem(null)
       showToast('Menu item updated', 'success')
@@ -255,27 +260,41 @@ export default function OwnerDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <h2 className="font-semibold text-lg mb-3">Menu Items</h2>
-            {categories.map(cat => {
-              const items = menuItems.filter(i => i.category === cat)
+            {[...categories, 'Other'].map(cat => {
+              const items = cat === 'Other'
+                ? menuItems.filter(i => !categories.includes(i.category))
+                : menuItems.filter(i => i.category === cat)
               if (items.length === 0) return null
+              const subCats = [...new Set(items.map(i => i.subCategory || 'General'))]
               return (
                 <div key={cat} className="mb-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">{cat}</h3>
-                  {items.map(item => (
-                    <div key={item.id} className="border rounded-lg p-3 mb-2 bg-white flex justify-between items-center">
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-sm text-gray-500">{item.desc}</p>
-                        <p className="text-sm font-bold text-orange-600">{formatPrice(item.price)}</p>
+                  {subCats.filter(Boolean).map(sub => {
+                    const subItems = items.filter(i => (i.subCategory || 'General') === sub)
+                    return (
+                      <div key={sub} className="mb-2">
+                        <p className="text-xs text-gray-400 ml-1 mb-1">{sub}</p>
+                        {subItems.map(item => (
+                          <div key={item.id} className="border rounded-lg p-3 mb-1.5 bg-white flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              {item.image && <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover" />}
+                              <div>
+                                <p className="font-medium">{item.name}</p>
+                                <p className="text-sm text-gray-500">{item.desc}</p>
+                                <p className="text-sm font-bold text-orange-600">{formatPrice(item.price)}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => setEditingItem(item)}
+                                className="text-blue-600 text-sm hover:underline">Edit</button>
+                              <button onClick={() => setConfirmAction({ type: 'delete', itemId: item.id, itemName: item.name })}
+                                className="text-red-500 text-sm hover:underline">Delete</button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => setEditingItem(item)}
-                          className="text-blue-600 text-sm hover:underline">Edit</button>
-                        <button onClick={() => setConfirmAction({ type: 'delete', itemId: item.id, itemName: item.name })}
-                          className="text-red-500 text-sm hover:underline">Delete</button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )
             })}
@@ -289,13 +308,21 @@ export default function OwnerDashboard() {
                 <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Name"
                   value={editingItem.name} onChange={e => setEditingItem(p => ({ ...p, name: e.target.value }))} required />
                 <select className="border p-2 rounded w-full mb-2 text-sm"
-                  value={editingItem.category} onChange={e => setEditingItem(p => ({ ...p, category: e.target.value }))}>
+                  value={editingItem.category} onChange={e => setEditingItem(p => ({ ...p, category: e.target.value, subCategory: '' }))}>
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select className="border p-2 rounded w-full mb-2 text-sm"
+                  value={editingItem.subCategory} onChange={e => setEditingItem(p => ({ ...p, subCategory: e.target.value }))}>
+                  <option value="">Select subcategory</option>
+                  {(CATEGORY_SUBCATEGORIES[editingItem.category] || []).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <input className="border p-2 rounded w-full mb-2 text-sm" type="number" step="0.01" placeholder="Price (NPR)"
                   value={editingItem.price} onChange={e => setEditingItem(p => ({ ...p, price: e.target.value }))} required />
                 <textarea className="border p-2 rounded w-full mb-2 text-sm" placeholder="Description"
                   value={editingItem.desc || ''} onChange={e => setEditingItem(p => ({ ...p, desc: e.target.value }))} />
+                <div className="mb-3">
+                  <ImageUpload value={editingItem.image || ''} onChange={(url) => setEditingItem(p => ({ ...p, image: url }))} label="Item image" />
+                </div>
                 <div className="flex gap-2">
                   <button type="submit" className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm">Save</button>
                   <button type="button" onClick={() => setEditingItem(null)}
@@ -308,14 +335,22 @@ export default function OwnerDashboard() {
                 <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Item name"
                   value={newItem.name} onChange={e => setNewItem(p => ({ ...p, name: e.target.value }))} required />
                 <select className="border p-2 rounded w-full mb-2 text-sm"
-                  value={newItem.category} onChange={e => setNewItem(p => ({ ...p, category: e.target.value }))}>
+                  value={newItem.category} onChange={e => setNewItem(p => ({ ...p, category: e.target.value, subCategory: '' }))}>
                   <option value="">Select category</option>
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select className="border p-2 rounded w-full mb-2 text-sm"
+                  value={newItem.subCategory} onChange={e => setNewItem(p => ({ ...p, subCategory: e.target.value }))}>
+                  <option value="">Select subcategory</option>
+                  {(CATEGORY_SUBCATEGORIES[newItem.category] || []).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <input className="border p-2 rounded w-full mb-2 text-sm" type="number" step="0.01" placeholder="Price (NPR)"
                   value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))} required />
                 <textarea className="border p-2 rounded w-full mb-2 text-sm" placeholder="Description (optional)"
                   value={newItem.desc} onChange={e => setNewItem(p => ({ ...p, desc: e.target.value }))} />
+                <div className="mb-3">
+                  <ImageUpload value={newItem.image || ''} onChange={(url) => setNewItem(p => ({ ...p, image: url }))} label="Item image" />
+                </div>
                 <button type="submit" className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm">Add Item</button>
               </form>
             )}
@@ -336,6 +371,7 @@ export default function OwnerDashboard() {
             <div><span className="text-gray-500">Delivery Time:</span> {restaurant?.deliveryTime}</div>
             <div><span className="text-gray-500">Status:</span> {restaurant?.isOpen ? 'Open' : 'Closed'}</div>
           </div>
+          {restaurant?.image && <img src={restaurant.image} alt={restaurant.name} className="mt-3 w-40 h-28 object-cover rounded-lg" />}
         </div>
       )}
 
@@ -356,8 +392,9 @@ export default function OwnerDashboard() {
               <option value="true">Open</option>
               <option value="false">Closed</option>
             </select>
-            <input className="border p-2 rounded text-sm col-span-2" placeholder="Image URL" value={settingsForm.image}
-              onChange={e => setSettingsForm(p => ({ ...p, image: e.target.value }))} />
+            <div className="col-span-2">
+              <ImageUpload value={settingsForm.image || ''} onChange={(url) => setSettingsForm(p => ({ ...p, image: url }))} label="Restaurant image" />
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <button type="submit" className="bg-orange-500 text-white px-4 py-2 rounded text-sm">Save</button>

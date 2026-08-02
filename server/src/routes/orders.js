@@ -4,6 +4,7 @@ const { authenticate } = require('../middleware/auth')
 const { isValidTransition, TERMINAL_STATUSES } = require('../utils/statusFlow')
 const { badRequest, notFound, forbidden, serverError } = require('../utils/errors')
 const { validate } = require('../middleware/validate')
+const { notifyRestaurantOwner } = require('../utils/notify')
 
 const router = express.Router()
 
@@ -44,6 +45,13 @@ router.post('/', authenticate, validate('address'), async (req, res) => {
     })
 
     res.status(201).json(order)
+
+    notifyRestaurantOwner(
+      order,
+      'New order received',
+      `New order #${order.id} for NPR ${order.total.toFixed(2)} — check your dashboard.`,
+      'order',
+    )
   } catch (err) {
     serverError(res, 'Failed to create order')
   }

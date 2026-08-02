@@ -54,11 +54,37 @@ export function calcTotal(items) {
 }
 
 export const CUISINE_CATEGORIES = {
-  Italian: ['Pizza', 'Pasta', 'Salad', 'Dessert', 'Beverage'],
-  American: ['Burger', 'Sandwich', 'Fries', 'Beverage', 'Dessert'],
-  Japanese: ['Sushi', 'Roll', 'Noodle', 'Appetizer', 'Dessert'],
-  Mexican: ['Taco', 'Quesadilla', 'Nachos', 'Burrito', 'Beverage'],
+  Italian: ['Pizza', 'Pasta', 'Salad', 'Appetizer', 'Dessert', 'Beverage'],
+  American: ['Burger', 'Sandwich', 'Fries', 'Appetizer', 'Dessert', 'Beverage'],
+  Japanese: ['Sushi', 'Roll', 'Noodle', 'Appetizer', 'Dessert', 'Beverage'],
+  Mexican: ['Taco', 'Quesadilla', 'Nachos', 'Burrito', 'Appetizer', 'Beverage'],
   Indian: ['Curry', 'Bread', 'Rice', 'Appetizer', 'Dessert', 'Beverage'],
-  Chinese: ['Noodle', 'Rice', 'Dumpling', 'Appetizer', 'Soup'],
+  Chinese: ['Noodle', 'Rice', 'Dumpling', 'Appetizer', 'Soup', 'Beverage'],
   Nepali: ['Momo', 'Curry', 'Rice', 'Dal Bhat', 'Appetizer', 'Beverage'],
+}
+
+export const CATEGORY_SUBCATEGORIES = {
+  Pizza: ['Vegetarian', 'Non-Vegetarian', 'Specialty'],
+  Pasta: ['White Sauce', 'Red Sauce', 'Baked'],
+  Salad: ['Garden', 'Caesar', 'Fruit'],
+  Burger: ['Beef', 'Chicken', 'Veggie'],
+  Sandwich: ['Grilled', 'Club', 'Sub'],
+  Fries: ['Classic', 'Loaded', 'Wedges'],
+  Sushi: ['Maki', 'Nigiri', 'Sashimi'],
+  Roll: ['California', 'Spicy', 'Tempura'],
+  Noodle: ['Chow Mein', 'Lo Mein', 'Hakka'],
+  Taco: ['Soft', 'Hard', 'Specialty'],
+  Quesadilla: ['Chicken', 'Cheese', 'Veggie'],
+  Nachos: ['Classic', 'Loaded'],
+  Burrito: ['Chicken', 'Beef', 'Veggie'],
+  Curry: ['Chicken', 'Mutton', 'Veggie', 'Paneer'],
+  Bread: ['Naan', 'Roti', 'Paratha'],
+  Rice: ['Biryani', 'Plain', 'Fried'],
+  Dumpling: ['Steamed', 'Fried'],
+  Soup: ['Hot & Sour', 'Wonton', 'Clear'],
+  Momo: ['Steamed', 'Fried', 'Jhol', 'C Momo'],
+  'Dal Bhat': ['Regular', 'Special'],
+  Appetizer: ['Hot', 'Cold', 'Platter'],
+  Dessert: ['Ice Cream', 'Cake', 'Traditional'],
+  Beverage: ['Hot', 'Cold', 'Signature'],
 }

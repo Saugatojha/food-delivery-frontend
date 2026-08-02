@@ -27,8 +27,17 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (name, email, password) => {
     const { data } = await api.post('/auth/register', { name: name.trim(), email: email.trim().toLowerCase(), password })
-    writeJson('user', data.user)
-    setUser(data.user)
+    return data
+  }, [])
+
+  const verifyEmail = useCallback(async (token) => {
+    const { data } = await api.get(`/auth/verify-email?token=${encodeURIComponent(token)}`)
+    return data
+  }, [])
+
+  const resendVerification = useCallback(async (email) => {
+    const { data } = await api.post('/auth/resend-verification', { login: email.trim().toLowerCase() })
+    return data
   }, [])
 
   const logout = useCallback(async () => {
@@ -38,7 +47,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, verifyEmail, resendVerification, logout }}>
       {children}
     </AuthContext.Provider>
   )

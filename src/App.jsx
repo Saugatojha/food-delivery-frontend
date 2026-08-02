@@ -1,12 +1,14 @@
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
+import { NotificationProvider } from './context/NotificationContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 import RoleRoute from './components/RoleRoute'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import VerifyEmail from './pages/VerifyEmail'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Home from './pages/Home'
@@ -25,11 +27,13 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
-          <Navbar />
-          <main className="min-h-[calc(100vh-56px)] bg-gray-50">
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+          <NotificationProvider>
+            <Navbar />
+            <main className="min-h-[calc(100vh-56px)] bg-gray-50">
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
@@ -43,7 +47,8 @@ export default function App() {
               <Route path="/rider" element={<RoleRoute roles={['rider']}><RiderDashboard /></RoleRoute>} />
               <Route path="/admin" element={<RoleRoute roles={['admin']}><AdminPanel /></RoleRoute>} />
             </Routes>
-          </main>
+            </main>
+          </NotificationProvider>
         </ToastProvider>
       </AuthProvider>
     </ErrorBoundary>

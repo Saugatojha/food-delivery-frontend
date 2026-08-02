@@ -66,10 +66,13 @@ export default function Restaurant() {
       <div className="grid gap-3">
         {items.map(item => (
           <div key={item.id} className="border rounded-lg p-4 flex justify-between items-center">
-            <div>
-              <h3 className="font-semibold">{item.name}</h3>
-              {item.desc && <p className="text-sm text-gray-500">{item.desc}</p>}
-              <p className="text-orange-600 font-medium mt-1">{formatPrice(item.price)}</p>
+            <div className="flex items-center gap-3">
+              {item.image && <img src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover" />}
+              <div>
+                <h3 className="font-semibold">{item.name}</h3>
+                {item.desc && <p className="text-sm text-gray-500">{item.desc}</p>}
+                <p className="text-orange-600 font-medium mt-1">{formatPrice(item.price)}</p>
+              </div>
             </div>
             <button onClick={() => addToCart(item)} className="bg-orange-500 text-white px-4 py-2 rounded text-sm whitespace-nowrap">
               Add to Cart

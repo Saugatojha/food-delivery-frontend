@@ -1,4 +1,5 @@
 const express = require('express')
+const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const rateLimit = require('express-rate-limit')
@@ -8,6 +9,7 @@ const { authenticate } = require('../middleware/auth')
 const { badRequest, conflict, unauthorized, serverError } = require('../utils/errors')
 const { validate, validatePasswordStrength } = require('../middleware/validate')
 const { generateCsrfToken, setCsrfCookie } = require('../middleware/csrf')
+const { sendVerificationEmail } = require('../utils/mailer')
 const logger = require('../config/logger')
 
 const router = express.Router()
@@ -76,14 +78,28 @@ router.post('/register', registerLimiter, validate('name', 'email', 'password'),
     if (existingName) return conflict(res, 'Username already taken')
 
     const hashed = await bcrypt.hash(password, 12)
+    const verificationToken = crypto.randomBytes(32).toString('hex')
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+
     const user = await prisma.user.create({
-      data: { name, email, password: hashed, role: 'customer' },
+      data: {
+        name,
+        email,
+        password: hashed,
+        role: 'customer',
+        emailVerified: false,
+        verificationToken,
+        verificationExpires,
+      },
     })
 
-    const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
-    setJwtCookie(res, token)
-    setCsrfCookie(res, generateCsrfToken())
-    res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId } })
+    const emailResult = sendVerificationEmail(user, verificationToken)
+
+    res.status(201).json({
+      message: 'Registration successful. Please verify your email to login.',
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: false },
+      ...(process.env.NODE_ENV !== 'production' && emailResult.devLink ? { devLink: emailResult.devLink } : {}),
+    })
   } catch (err) {
     logger.error({ message: 'Register error', error: err.message, stack: err.stack })
     serverError(res, 'Registration failed')
@@ -109,13 +125,70 @@ router.post('/login', loginLimiter, checkLockout, validate('login', 'password'),
       return unauthorized(res, 'Invalid credentials')
     }
 
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        error: 'Please verify your email before logging in',
+        code: 'EMAIL_NOT_VERIFIED',
+        email: user.email,
+      })
+    }
+
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
     setJwtCookie(res, token)
     setCsrfCookie(res, generateCsrfToken())
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId } })
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: true } })
   } catch (err) {
     logger.error({ message: 'Login error', error: err.message, stack: err.stack })
     serverError(res, 'Login failed')
+  }
+})
+
+router.get('/verify-email', async (req, res) => {
+  try {
+    const token = req.query.token
+    if (!token) return badRequest(res, 'Verification token is required')
+
+    const user = await prisma.user.findUnique({ where: { verificationToken: token } })
+    if (!user) return badRequest(res, 'Invalid or expired verification token')
+
+    if (user.verificationExpires && user.verificationExpires < new Date()) {
+      return badRequest(res, 'Verification token has expired. Request a new one.')
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true, verificationToken: null, verificationExpires: null },
+    })
+
+    res.json({ message: 'Email verified successfully. You can now log in.' })
+  } catch (err) {
+    logger.error({ message: 'Verify email error', error: err.message })
+    serverError(res, 'Verification failed')
+  }
+})
+
+router.post('/resend-verification', validate('login'), async (req, res) => {
+  try {
+    const loginValue = req.body.login.trim().toLowerCase()
+    const user = await prisma.user.findUnique({ where: { email: loginValue } })
+    if (!user) return unauthorized(res, 'Invalid email')
+
+    if (user.emailVerified) return badRequest(res, 'Email is already verified')
+
+    const verificationToken = crypto.randomBytes(32).toString('hex')
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+
+    await prisma.user.update({ where: { id: user.id }, data: { verificationToken, verificationExpires } })
+
+    const emailResult = sendVerificationEmail(user, verificationToken)
+
+    res.json({
+      message: 'Verification email sent.',
+      ...(process.env.NODE_ENV !== 'production' && emailResult.devLink ? { devLink: emailResult.devLink } : {}),
+    })
+  } catch (err) {
+    logger.error({ message: 'Resend verification error', error: err.message })
+    serverError(res, 'Failed to resend verification')
   }
 })
 

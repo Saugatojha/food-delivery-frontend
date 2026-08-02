@@ -16,6 +16,7 @@ const riderRoutes = require('./routes/rider')
 const adminRoutes = require('./routes/admin')
 const cartRoutes = require('./routes/cart')
 const uploadRoutes = require('./routes/upload')
+const notificationRoutes = require('./routes/notifications')
 
 const app = express()
 
@@ -62,6 +63,7 @@ app.use('/api/rider', riderRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/cart', cartRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/notifications', notificationRoutes)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }))

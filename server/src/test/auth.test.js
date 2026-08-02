@@ -9,10 +9,18 @@ describe('POST /api/auth/register', () => {
   it('registers a new user', async () => {
     const res = await request(app).post('/api/auth/register').send(newUser)
     expect(res.status).toBe(201)
-    expect(res.body.token).toBeTruthy()
+    expect(res.body.message).toMatch(/verify/i)
     expect(res.body.user.email).toBe(newUser.email)
     expect(res.body.user.role).toBe('customer')
+    expect(res.body.user.emailVerified).toBe(false)
     expect(res.body.user).not.toHaveProperty('password')
+    expect(res.body.token).toBeFalsy()
+  })
+
+  it('blocks login until email is verified', async () => {
+    const login = await request(app).post('/api/auth/login').send({ login: newUser.email, password: newUser.password })
+    expect(login.status).toBe(403)
+    expect(login.body.code).toBe('EMAIL_NOT_VERIFIED')
   })
 
   it('rejects missing fields', async () => {

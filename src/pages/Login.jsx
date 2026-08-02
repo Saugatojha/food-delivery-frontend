@@ -16,6 +16,7 @@ export default function Login() {
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [showPw, setShowPw] = useState(false)
+  const [unverifiedEmail, setUnverifiedEmail] = useState('')
 
   const validate = () => {
     const e = {}
@@ -31,11 +32,20 @@ export default function Login() {
     setLoading(true)
     try {
       const u = await login(form.login, form.password)
+      setUnverifiedEmail('')
       showToast('Welcome back!', 'success')
       const roleRoutes = { rider: '/rider', owner: '/owner', admin: '/admin' }
       navigate(roleRoutes[u.role] || '/')
-    } catch {
-      showToast('Invalid email/username or password', 'error')
+    } catch (err) {
+      const code = err?.response?.data?.code
+      const email = err?.response?.data?.email
+      if (code === 'EMAIL_NOT_VERIFIED') {
+        setUnverifiedEmail(email || form.login.trim())
+        showToast('Please verify your email before logging in', 'error')
+      } else {
+        setUnverifiedEmail('')
+        showToast('Invalid email/username or password', 'error')
+      }
     } finally {
       setLoading(false)
     }
@@ -55,6 +65,14 @@ export default function Login() {
     <div className="max-w-md mx-auto mt-10 p-6">
       <h1 className="text-2xl font-bold mb-1">Login</h1>
       <p className="text-sm text-gray-500 mb-6">Welcome back! Sign in to your account.</p>
+      {unverifiedEmail && (
+        <div role="alert" className="mb-4 border border-amber-300 bg-amber-50 text-amber-800 rounded p-3 text-sm">
+          Your email is not verified yet. Please verify it before logging in.
+          <Link to={`/verify-email?email=${encodeURIComponent(unverifiedEmail)}`} className="text-orange-700 font-medium underline ml-1">
+            Resend verification link
+          </Link>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="grid gap-4" aria-busy={loading} noValidate>
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="login-field">Email or Username</label>
