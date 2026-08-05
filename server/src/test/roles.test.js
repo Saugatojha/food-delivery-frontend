@@ -32,6 +32,18 @@ describe('role-based access', () => {
     expect(res.status).toBe(403)
   })
 
+  it('owner and rider are the same entity — owner can access rider routes', async () => {
+    const token = await getToken('owner@test.com')
+    const res = await request(app).get('/api/rider/deliveries').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+  })
+
+  it('owner and rider are the same entity — rider can access owner routes', async () => {
+    const token = await getToken('rider@test.com')
+    const res = await request(app).get('/api/owner/restaurant').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(404)
+  })
+
   it('admin can access admin routes', async () => {
     const token = await getToken('admin@test.com')
     const res = await request(app).get('/api/admin/stats').set('Authorization', `Bearer ${token}`)
@@ -78,8 +90,8 @@ describe('owner menu management', () => {
   })
 })
 
-describe('rider location', () => {
-  it('updates rider location', async () => {
+describe('rider location removed', () => {
+  it('separate rider location route no longer exists', async () => {
     const token = await getToken('rider@test.com')
     const res = await request(app).patch('/api/rider/location').set('Authorization', `Bearer ${token}`).send({
       latitude: 27.70,

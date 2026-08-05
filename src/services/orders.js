@@ -34,21 +34,6 @@ export async function updateOwnerOrderStatus(orderId, newStatus) {
   return data
 }
 
-export async function updateRiderOrderStatus(orderId, newStatus) {
-  const { data } = await api.patch(`/rider/orders/${orderId}/status`, { status: newStatus })
-  return data
-}
-
-export async function acceptDelivery(orderId) {
-  const { data } = await api.patch(`/rider/orders/${orderId}/accept`)
-  return data
-}
-
-export async function rejectDelivery(orderId) {
-  const { data } = await api.patch(`/rider/orders/${orderId}/reject`)
-  return data
-}
-
 export async function getRiderEarnings() {
   const { data } = await api.get('/rider/earnings')
   return data
@@ -108,8 +93,8 @@ export async function submitOrder(orderPayload) {
 
 export const STATUS_FLOWS = {
   customer: ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered'],
-  owner: ['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup'],
-  rider: ['Ready for Pickup', 'Out for Delivery', 'Delivered'],
+  owner: ['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered', 'Rejected'],
+  rider: ['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered'],
 }
 
 export function isValidTransition(current, next, flow) {

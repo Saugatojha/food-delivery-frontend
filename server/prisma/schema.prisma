@@ -111,15 +111,12 @@ model Payment {
 }
 
 model Delivery {
-  id               Int      @id @default(autoincrement())
-  orderId          Int      @unique
-  riderId          Int?
-  status           String   @default("assigned")
-  address          String
-  riderLatitude    Float?
-  riderLongitude   Float?
-  locationUpdatedAt DateTime?
-  createdAt        DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  orderId   Int      @unique
+  riderId   Int?
+  status    String   @default("assigned")
+  address   String
+  createdAt DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id])
 }

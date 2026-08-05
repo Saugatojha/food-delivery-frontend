@@ -7,7 +7,7 @@ describe('FLOWS', () => {
   })
 
   it('defines owner flow', () => {
-    expect(FLOWS.owner).toEqual(['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Rejected'])
+    expect(FLOWS.owner).toEqual(['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered', 'Rejected'])
   })
 
   it('defines rider flow', () => {

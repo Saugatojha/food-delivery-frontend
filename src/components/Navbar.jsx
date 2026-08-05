@@ -18,7 +18,9 @@ const roleLinks = {
     { to: '/owner/orders', label: 'Orders' },
   ],
   rider: [
-    { to: '/rider', label: 'Deliveries' },
+    { to: '/owner', label: 'Dashboard' },
+    { to: '/owner/menu', label: 'Menu' },
+    { to: '/owner/orders', label: 'Orders' },
   ],
   admin: [
     { to: '/admin', label: 'Panel' },

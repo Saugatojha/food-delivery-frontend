@@ -58,9 +58,43 @@ describe('PATCH /api/orders/:id/status', () => {
     const orderId = order.body.id
 
     const ownerToken = await getToken('owner@test.com')
-    const res = await request(app).patch(`/api/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Confirmed' })
+    const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Confirmed' })
     expect(res.status).toBe(200)
     expect(res.body.status).toBe('Confirmed')
+  })
+
+  it('auto-assigns the restaurant owner as rider when the order is accepted', async () => {
+    const customerToken = await getToken()
+    const order = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({
+      items: [{ menuItemId: 3, restaurantId: 1, quantity: 1 }],
+      address: '321 Main St',
+      paymentMethod: 'cash',
+    })
+    const orderId = order.body.id
+
+    const ownerToken = await getToken('owner@test.com')
+    const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Confirmed' })
+    expect(res.status).toBe(200)
+    expect(res.body.delivery).toBeTruthy()
+    expect(res.body.delivery.riderId).toBeGreaterThan(0)
+  })
+
+  it('owner can deliver the order through the full lifecycle', async () => {
+    const customerToken = await getToken()
+    const order = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({
+      items: [{ menuItemId: 3, restaurantId: 1, quantity: 1 }],
+      address: '654 Elm St',
+      paymentMethod: 'cash',
+    })
+    const orderId = order.body.id
+
+    const ownerToken = await getToken('owner@test.com')
+    const flow = ['Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered']
+    for (const status of flow) {
+      const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status })
+      expect(res.status).toBe(200)
+      expect(res.body.status).toBe(status)
+    }
   })
 
   it('rejects invalid transition', async () => {
@@ -73,7 +107,7 @@ describe('PATCH /api/orders/:id/status', () => {
     const orderId = order.body.id
 
     const ownerToken = await getToken('owner@test.com')
-    const res = await request(app).patch(`/api/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Delivered' })
+    const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Delivered' })
     expect(res.status).toBe(403)
   })
 })

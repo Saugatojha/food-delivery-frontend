@@ -42,12 +42,9 @@ describe('status flow constants', () => {
     expect(STATUS_FLOWS.customer).toEqual(['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered'])
   })
 
-  it('owner flow has 4 steps', () => {
-    expect(STATUS_FLOWS.owner).toEqual(['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup'])
-  })
-
-  it('rider flow has 3 steps', () => {
-    expect(STATUS_FLOWS.rider).toEqual(['Ready for Pickup', 'Out for Delivery', 'Delivered'])
+  it('owner and rider share one full lifecycle flow', () => {
+    expect(STATUS_FLOWS.owner).toEqual(['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered', 'Rejected'])
+    expect(STATUS_FLOWS.rider).toEqual(['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered'])
   })
 })
 

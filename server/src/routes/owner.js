@@ -8,7 +8,7 @@ const { notifyCustomer } = require('../utils/notify')
 
 const router = express.Router()
 
-router.use(authenticate, authorize('owner'))
+router.use(authenticate, authorize('owner', 'rider'))
 
 async function getRestaurant(userId) {
   return prisma.restaurant.findUnique({ where: { ownerId: userId } })
@@ -152,6 +152,14 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
 
     if (!isValidTransition(order.status, status, 'owner')) {
       return forbidden(res, `Cannot transition from ${order.status} to ${status}`)
+    }
+
+    if (status === 'Confirmed') {
+      await prisma.delivery.upsert({
+        where: { orderId: order.id },
+        update: { riderId: req.user.id, status: 'assigned' },
+        create: { orderId: order.id, riderId: req.user.id, address: order.address, status: 'assigned' },
+      })
     }
 
     const updated = await prisma.order.update({

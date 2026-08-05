@@ -8,7 +8,7 @@ const { notifyCustomer } = require('../utils/notify')
 
 const router = express.Router()
 
-router.use(authenticate, authorize('rider'))
+router.use(authenticate, authorize('rider', 'owner'))
 
 router.get('/deliveries', async (req, res) => {
   try {
@@ -139,28 +139,6 @@ router.get('/earnings', async (req, res) => {
     })
   } catch (err) {
     serverError(res, 'Failed to fetch earnings')
-  }
-})
-
-router.patch('/location', validate('latitude', 'longitude'), async (req, res) => {
-  try {
-    const { latitude, longitude } = req.body
-
-    const delivery = await prisma.delivery.findFirst({
-      where: { riderId: req.user.id, status: { in: ['assigned', 'picked_up'] } },
-      orderBy: { createdAt: 'desc' },
-    })
-
-    if (!delivery) return notFound(res, 'No active delivery found')
-
-    const updated = await prisma.delivery.update({
-      where: { id: delivery.id },
-      data: { riderLatitude: latitude, riderLongitude: longitude, locationUpdatedAt: new Date() },
-    })
-
-    res.json(updated)
-  } catch (err) {
-    serverError(res, 'Failed to update location')
   }
 })
 

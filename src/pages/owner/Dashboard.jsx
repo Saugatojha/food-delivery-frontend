@@ -4,8 +4,13 @@ import { useToast } from '../../context/ToastContext'
 import { formatPrice, CUISINE_CATEGORIES, CATEGORY_SUBCATEGORIES } from '../../data/mock'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
 import ImageUpload from '../../components/ImageUpload'
+import MapView from '../../components/MapView'
+import EmptyState from '../../components/EmptyState'
 import api from '../../api/client'
-import { updateOwnerOrderStatus } from '../../services/orders'
+import { updateOwnerOrderStatus, getRiderEarnings, STATUS_FLOWS, getNextStatus } from '../../services/orders'
+
+const STATUS_FLOW = STATUS_FLOWS.owner
+const TERMINAL = ['Delivered', 'Rejected', 'Cancelled']
 
 function playNotification() {
   try {
@@ -30,6 +35,7 @@ export default function OwnerDashboard() {
   const [restaurant, setRestaurant] = useState(null)
   const [orders, setOrders] = useState([])
   const [menuItems, setMenuItems] = useState([])
+  const [earnings, setEarnings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [settingsForm, setSettingsForm] = useState({})
   const [editingSettings, setEditingSettings] = useState(false)
@@ -63,6 +69,17 @@ export default function OwnerDashboard() {
     const interval = setInterval(fetchData, 15000)
     return () => clearInterval(interval)
   }, [fetchData])
+
+  const fetchEarnings = useCallback(async () => {
+    try {
+      const data = await getRiderEarnings()
+      setEarnings(data)
+    } catch { }
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'earnings') fetchEarnings()
+  }, [tab, fetchEarnings])
 
   useEffect(() => {
     if (restaurant) {
@@ -149,8 +166,35 @@ export default function OwnerDashboard() {
   const categories = CUISINE_CATEGORIES[restaurant?.cuisine] || ['General']
 
   const pendingOrders = orders.filter(o => o.status === 'Pending')
-  const activeOrders = orders.filter(o => ['Confirmed', 'Preparing'].includes(o.status))
-  const completedOrders = orders.filter(o => ['Ready for Pickup', 'Out for Delivery', 'Delivered'].includes(o.status))
+  const activeOrders = orders.filter(o => ['Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery'].includes(o.status))
+  const completedOrders = orders.filter(o => o.status === 'Delivered')
+  const declinedOrders = orders.filter(o => o.status === 'Rejected')
+
+  const riderPos = restaurant?.latitude
+    ? { latitude: restaurant.latitude, longitude: restaurant.longitude }
+    : null
+
+  const renderMap = (order) => {
+    if (!restaurant?.latitude || !order.deliveryLatitude) return null
+    return (
+      <div className="mt-3">
+        <MapView
+          restaurant={{ latitude: restaurant.latitude, longitude: restaurant.longitude }}
+          delivery={{ latitude: order.deliveryLatitude, longitude: order.deliveryLongitude }}
+          rider={riderPos}
+          interactive={false}
+          height="150px"
+          showRouteNote
+        />
+      </div>
+    )
+  }
+
+  const orderLines = (order) => (
+    (order.items || []).map(item => (
+      <p key={item.id || item.menuItemId} className="text-sm">{item.name || item.menuItem?.name} x{item.qty || item.quantity}</p>
+    ))
+  )
 
   if (loading) return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6">
@@ -164,7 +208,7 @@ export default function OwnerDashboard() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{restaurant?.name || 'Owner Dashboard'}</h1>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          {['orders', 'menu', 'settings'].map(t => (
+          {['orders', 'menu', 'settings', 'earnings'].map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded text-sm font-medium capitalize ${tab === t ? 'bg-white shadow text-orange-600' : 'text-gray-600'}`}>
               {t}
@@ -199,9 +243,7 @@ export default function OwnerDashboard() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm text-gray-500">Order #{order.id}</p>
-                    {(order.items || []).map(item => (
-                      <p key={item.id || item.menuItemId} className="text-sm">{item.name || item.menuItem?.name} x{item.qty || item.quantity}</p>
-                    ))}
+                    {orderLines(order)}
                     <p className="font-bold mt-1 text-orange-600">{formatPrice(order.total)}</p>
                     <p className="text-xs text-gray-400">{order.address}</p>
                   </div>
@@ -223,32 +265,55 @@ export default function OwnerDashboard() {
           {activeOrders.length > 0 && (
             <>
               <h2 className="font-semibold text-lg mb-3 mt-6">Active Orders</h2>
-              {activeOrders.map(order => (
-                <div key={order.id} className="border rounded-lg p-4 mb-3 bg-white">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-sm text-gray-500">Order #{order.id}</p>
-                      {(order.items || []).map(item => (
-                        <p key={item.id || item.menuItemId} className="text-sm">{item.name || item.menuItem?.name} x{item.qty || item.quantity}</p>
-                      ))}
-                      <p className="font-bold mt-1 text-orange-600">{formatPrice(order.total)}</p>
+              {activeOrders.map(order => {
+                const next = TERMINAL.includes(order.status) ? null : getNextStatus(order.status, STATUS_FLOW)
+                return (
+                  <div key={order.id} className="border rounded-lg p-4 mb-3 bg-white">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm text-gray-500">Order #{order.id}</p>
+                        {orderLines(order)}
+                        <p className="font-bold mt-1 text-orange-600">{formatPrice(order.total)}</p>
+                        <p className="text-xs text-gray-400">{order.address}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`px-2 py-1 rounded text-xs font-medium block mb-2 ${
+                          order.status === 'Out for Delivery' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {order.status}
+                        </span>
+                        {next && (
+                          <button onClick={() => handleOrderStatus(order.id, next)}
+                            className="bg-orange-500 text-white px-3 py-1 rounded text-xs font-medium hover:bg-orange-600">
+                            Mark {next}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">{order.status}</span>
-                      {order.status === 'Confirmed' && (
-                        <button onClick={() => handleOrderStatus(order.id, 'Preparing')}
-                          className="block mt-2 bg-orange-500 text-white px-3 py-1 rounded text-xs font-medium">
-                          Start Preparing
-                        </button>
-                      )}
-                      {order.status === 'Preparing' && (
-                        <button onClick={() => handleOrderStatus(order.id, 'Ready for Pickup')}
-                          className="block mt-2 bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium">
-                          Mark Ready
-                        </button>
-                      )}
-                    </div>
+                    {renderMap(order)}
                   </div>
+                )
+              })}
+            </>
+          )}
+
+          {completedOrders.length > 0 && (
+            <>
+              <h2 className="font-semibold text-lg mb-3 mt-6">Completed Orders</h2>
+              {completedOrders.map(order => (
+                <div key={order.id} className="border rounded-lg p-3 mb-2 bg-gray-50">
+                  <p className="text-sm text-gray-500">Order #{order.id} — {formatPrice(order.total)} — Delivered</p>
+                </div>
+              ))}
+            </>
+          )}
+
+          {declinedOrders.length > 0 && (
+            <>
+              <h2 className="font-semibold text-lg mb-3 mt-6">Declined</h2>
+              {declinedOrders.map(order => (
+                <div key={order.id} className="border rounded-lg p-3 mb-2 bg-gray-50">
+                  <p className="text-sm text-gray-500">Order #{order.id} — {formatPrice(order.total)}</p>
                 </div>
               ))}
             </>
@@ -404,13 +469,54 @@ export default function OwnerDashboard() {
         </form>
       )}
 
+      {tab === 'earnings' && (
+        <div>
+          {earnings ? (
+            <div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <div className="border rounded-lg p-4 bg-white">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Today</p>
+                  <p className="text-xl font-bold text-green-600">{formatPrice(earnings.dailyEarnings)}</p>
+                  <p className="text-xs text-gray-400">{earnings.dailyCount} deliveries</p>
+                </div>
+                <div className="border rounded-lg p-4 bg-white">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">This Week</p>
+                  <p className="text-xl font-bold text-blue-600">{formatPrice(earnings.weeklyEarnings)}</p>
+                  <p className="text-xs text-gray-400">{earnings.weeklyCount} deliveries</p>
+                </div>
+                <div className="border rounded-lg p-4 bg-white">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">All Time</p>
+                  <p className="text-xl font-bold text-orange-600">{formatPrice(earnings.totalEarnings)}</p>
+                  <p className="text-xs text-gray-400">{earnings.totalDeliveries} deliveries</p>
+                </div>
+                <div className="border rounded-lg p-4 bg-white">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Avg per Delivery</p>
+                  <p className="text-xl font-bold text-gray-800">
+                    {earnings.totalDeliveries > 0
+                      ? formatPrice(earnings.totalEarnings / earnings.totalDeliveries)
+                      : 'Rs. 0.00'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={fetchEarnings}
+                className="text-blue-600 text-sm hover:underline">Refresh</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              {Array.from({ length: 4 }, (_, i) => <CardSkeleton key={i} />)}
+            </div>
+          )}
+        </div>
+      )}
+
       {confirmAction && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
             {confirmAction.type === 'accept' && (
               <>
                 <p className="font-semibold mb-2">Accept Order #{confirmAction.order.id}?</p>
-                <p className="text-sm text-gray-500 mb-4">Total: {formatPrice(confirmAction.order.total)}</p>
+                <p className="text-sm text-gray-500 mb-1">Total: {formatPrice(confirmAction.order.total)}</p>
+                <p className="text-sm text-gray-500 mb-4">You will be assigned as the delivery rider.</p>
                 <div className="flex gap-3 justify-end">
                   <button onClick={() => setConfirmAction(null)}
                     className="border px-3 py-1.5 rounded text-sm">Cancel</button>

@@ -77,7 +77,7 @@ router.get('/tracking/:id', authenticate, async (req, res) => {
       include: {
         items: { include: { menuItem: true } },
         restaurant: { select: { latitude: true, longitude: true } },
-        delivery: { select: { riderLatitude: true, riderLongitude: true, locationUpdatedAt: true } },
+        delivery: { select: { riderId: true, status: true, address: true } },
       },
     })
     if (!order) return notFound(res, 'Order not found')
