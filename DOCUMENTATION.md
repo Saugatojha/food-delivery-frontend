@@ -477,3 +477,75 @@ npx playwright test
 ```
 
 The frontend Axios client defaults to `http://localhost:5000/api`. Set `VITE_API_URL` in `.env` to override.
+
+---
+
+## Agile Development Process (Scrum)
+
+SmartServe is developed using an **agile (Scrum-style) methodology**: small, time-boxed sprints delivering working, tested increments; a prioritized product backlog; and a defined Definition of Done. This section records the process, the work delivered so far, and the future backlog.
+
+### Roles
+
+| Role | Responsibility | Owner |
+|---|---|---|
+| Product Owner | Prioritizes backlog, defines user stories, accepts work | Client / stakeholder |
+| Scrum Master | Facilitates ceremonies, removes blockers, guards DoD | Dev lead |
+| Developers | Implement stories, self-organize, estimate | Engineering team |
+
+### Ceremonies
+
+| Ceremony | Frequency | Purpose |
+|---|---|---|
+| Backlog grooming | Bi-weekly | Split epics into stories, estimate, re-prioritize |
+| Sprint planning | Start of each sprint | Commit to sprint goal + sprint backlog |
+| Daily stand-up | Daily (15 min) | Progress, plan, blockers |
+| Sprint review | End of sprint | Demo working increment to stakeholders |
+| Retrospective | End of sprint | What went well / improve / action items |
+
+### Definition of Done (DoD)
+
+A user story is **Done** only when all of the following are true:
+
+- Feature works end-to-end against the real API (no mock-only paths).
+- Backend: route covered by a passing Vitest test; migration applied.
+- Frontend: `vite build` succeeds; component tested where applicable.
+- Feedback states covered: loading, empty, success, and error.
+- Accessibility: new interactive elements have `aria-label` / keyboard access.
+- Documentation updated (`DOCUMENTATION.md` / `SEQUENCE_DIAGRAMS.md`).
+- Branch merged to `main` and pushed.
+
+### Product Backlog (prioritized)
+
+| ID | User story | Priority | Status |
+|---|---|---|---|
+| US-01 | As a customer, I want to enter my delivery location on the Cart page so that I can go straight to checkout | High | ✅ Done (Sprint 6) |
+| US-02 | As a new user, I want to verify my email before logging in so that my account is secure | High | ✅ Done (Sprint 6) |
+| US-03 | As a customer, I want a notification when the restaurant accepts or rejects my order | High | ✅ Done (Sprint 6) |
+| US-04 | As an owner, I want to upload images for my restaurant and menu items | High | ✅ Done (Sprint 6) |
+| US-05 | As a customer, I want the order tracker to update live so that I don't have to refresh | High | 🆕 Backlog |
+| US-06 | As a customer, I want a 3-step checkout wizard with live validation | Medium | 🆕 Backlog |
+| US-07 | As a user, I want dark mode and reduced-motion support | Medium | 🆕 Backlog |
+| US-08 | As an owner, I want to manage restaurant linking to my account | Low | 🆕 Backlog |
+
+### Sprint History
+
+| Sprint | Goal | Delivered |
+|---|---|---|
+| 1 | Foundation | Express + Prisma + SQLite API, JWT httpOnly auth, CORS, CSRF |
+| 2 | Discovery | Home page with map, search, cuisine filters, sort, pagination |
+| 3 | Ordering | Restaurant/menu pages, cart (localStorage), mock payment checkout |
+| 4 | Fulfillment | Role dashboards: owner (orders/menu/settings), rider (deliveries/earnings), admin CRUD |
+| 5 | Reliability | Security checklist, account lockout, rate limits, accessibility audit, category/subcategory menu system, docs |
+| 6 | Engagement (current) | **Delivery location → checkout (US-01), email verification (US-02), in-app + browser notifications (US-03), image uploads (US-04)** |
+| 7 | Polish (planned) | Tracking polling, checkout wizard, dark mode, performance/lazy routes |
+
+### Velocity & Quality
+
+- **Test suite:** 50 backend + 41 frontend = 91 automated tests, all green.
+- **Build:** production `vite build` passes.
+- **Working increment at end of every sprint** — demonstrable against the live dev servers.
+
+### Retrospective notes (Sprint 6)
+
+- **Went well:** 4 independent features shipped in one sprint; schema migration + seed handled cleanly; backend notifications isolated in `utils/notify.js` so routes stay thin.
+- **Improve:** frontend lint has pre-existing errors (Login/Register inline `Eye` components, `set-state-in-effect`) — schedule a tech-debt sprint; e2e Playwright suite not yet run against new auth flow.
