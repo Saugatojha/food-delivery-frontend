@@ -31,7 +31,7 @@
 | [x] | Map routes are straight lines (no road routing). | MapView.jsx | Use OSRM or Mapbox Directions API to compute realistic routes and ETA. |
 | [x] | No global API rate-limit – potential DoS. | None | Apply express-rate-limit globally (e.g., 100 req/min per IP). |
 | [x] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
-| [ ] | SQLite used for dev only – not suitable for production concurrency. | Documentation. | Switch to PostgreSQL/MySQL for production; keep SQLite for CI/tests. |
+| [x] | MySQL 8 with strong credentials — connection URL lives in `server/.env` (gitignored). | Done. | Rotate the default dev password before production. |
 | [x] | Hard-coded owner-restaurant linking (no UI). | Documentation. | Create admin UI to assign owners to restaurants; store relation in DB. |
 | [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 84 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
 

@@ -1,6 +1,5 @@
 const { execSync } = require('child_process')
 const path = require('path')
-const fs = require('fs')
 const net = require('net')
 
 const server = net.createServer()
@@ -11,16 +10,7 @@ server.on('error', () => {
 server.listen(5000, () => {
   server.close()
 
-  const dbPath = path.resolve(__dirname, '..', 'dev.db')
-  const journalPath = dbPath + '-journal'
-
-  if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath)
-  if (fs.existsSync(journalPath)) fs.unlinkSync(journalPath)
-
-  console.log('Deleted dev.db')
-
-  execSync('npx prisma migrate dev --name init', { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' })
-  execSync('npx prisma db seed', { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' })
+  execSync('npx prisma migrate reset --force', { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' })
 
   console.log('Database reset complete')
 })

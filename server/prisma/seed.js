@@ -1,16 +1,10 @@
 const bcrypt = require('bcryptjs')
-const { PrismaClient } = require('@prisma/client')
-const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3')
-const path = require('path')
-
-const dbUrl = 'file:' + path.resolve(__dirname, '..', 'dev.db')
-const adapter = new PrismaBetterSqlite3({ url: dbUrl })
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../src/config/database')
 
 async function main() {
   const password = await bcrypt.hash('password', 10)
 
-  await prisma.$executeRawUnsafe('PRAGMA foreign_keys = OFF')
+  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0')
   await prisma.rating.deleteMany()
   await prisma.delivery.deleteMany()
   await prisma.payment.deleteMany()
@@ -19,8 +13,8 @@ async function main() {
   await prisma.menuItem.deleteMany()
   await prisma.user.updateMany({ data: { restaurantId: null } })
   await prisma.restaurant.deleteMany()
-  await prisma.$executeRawUnsafe("DELETE FROM sqlite_sequence WHERE name='Restaurant'")
-  await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON')
+  await prisma.$executeRawUnsafe('ALTER TABLE Restaurant AUTO_INCREMENT = 1')
+  await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1')
 
   const customer = await prisma.user.upsert({
     where: { email: 'john@test.com' },
@@ -58,13 +52,13 @@ async function main() {
 
   for (const r of restaurants) {
     await prisma.$executeRawUnsafe(
-      "INSERT INTO Restaurant (id, name, cuisine, rating, deliveryTime, isOpen, ownerId, latitude, longitude, image, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+      "INSERT INTO Restaurant (id, name, cuisine, rating, deliveryTime, isOpen, ownerId, latitude, longitude, image, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
       r.id, r.name, r.cuisine, r.rating, r.deliveryTime, r.isOpen, r.ownerId, r.latitude, r.longitude, r.image
     )
   }
 
   await prisma.$executeRawUnsafe("DELETE FROM MenuItem")
-  await prisma.$executeRawUnsafe("DELETE FROM sqlite_sequence WHERE name='MenuItem'")
+  await prisma.$executeRawUnsafe('ALTER TABLE MenuItem AUTO_INCREMENT = 1')
 
   const menuData = [
     { id: 1,  restaurantId: 1, name: 'Margherita Pizza',    category: 'Pizza',    subCategory: 'Vegetarian',    price: 599,  desc: 'Classic cheese and tomato on thin crust' },
@@ -97,7 +91,7 @@ async function main() {
 
   for (const m of menuData) {
     await prisma.$executeRawUnsafe(
-      "INSERT INTO MenuItem (id, restaurantId, name, category, subCategory, price, desc, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+      "INSERT INTO MenuItem (id, restaurantId, name, category, subCategory, price, `desc`, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
       m.id, m.restaurantId, m.name, m.category, m.subCategory, m.price, m.desc
     )
   }

@@ -7,7 +7,7 @@
 
 ## 1. Current State of UI/UX (Audit)
 
-SmartServe is a React 19 + Vite 8 frontend styled with Tailwind CSS 4, talking to an Express/Prisma/SQLite API. Overall it is a **functional, honest MVP**: every page has loading, empty, and error-ish feedback, and basic accessibility labels exist. It reads as "engineer-built but clean". The gaps are in *polish, motion, discoverability, and a few functional UX bugs* (notably: order tracking never auto-refreshes).
+SmartServe is a React 19 + Vite 8 frontend styled with Tailwind CSS 4, talking to an Express/Prisma/MySQL API. Overall it is a **functional, honest MVP**: every page has loading, empty, and error-ish feedback, and basic accessibility labels exist. It reads as "engineer-built but clean". The gaps are in *polish, motion, discoverability, and a few functional UX bugs* (notably: order tracking never auto-refreshes).
 
 ### 1.1 What is working today
 

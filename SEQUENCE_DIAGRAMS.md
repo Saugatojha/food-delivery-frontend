@@ -10,7 +10,7 @@
 | Owner | Manages restaurant + menu, confirms orders | `/owner` (Orders / Menu / Settings) |
 | Rider | Accepts deliveries, updates status + location, views earnings | `/rider` (Available / My Deliveries / Earnings) |
 | Admin | Full restaurant CRUD, app oversight | `/admin` |
-| Backend | Express + Prisma (SQLite `dev.db`) | `/api/*` |
+| Backend | Express + Prisma (MySQL 8) | `/api/*` |
 
 ---
 
