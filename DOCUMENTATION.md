@@ -441,7 +441,7 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 
 ## Known Limitations
 
-1. **MySQL for dev/prod** — MySQL 8 via Prisma driver adapter; connection URL in `server/.env` (`DATABASE_URL`). For a throwaway setup, use the local `smartserve` database with `root`/`SmartServe@2026` (change before sharing).
+1. **MySQL for dev/prod** — MySQL 8 via Prisma driver adapter; connection URL in `server/.env` (`DATABASE_URL`). Copy `server/.env.example` to `server/.env` and set your own credentials (never commit real passwords).
 2. **Cart is localStorage** — Cart persists locally; a backend `/api/cart` API exists (validated `sync`/`add`) but is not yet wired into the frontend, so carts don't sync across devices.
 3. **No real payment** — Payment is mocked. No Stripe/PayPal integration.
 4. **No pagination** — All data loads at once.
@@ -460,7 +460,7 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 - **MySQL 8** running locally (Windows service `MySQL80`, or any reachable instance).
 - Set `DATABASE_URL` in `server/.env`:
   `mysql://<user>:<password>@localhost:3306/smartserve`
-  (The checked-in default uses root/`SmartServe@2026` — change it before sharing.)
+  (Copy `server/.env.example` and replace `<your-password>` with your own — real credentials are never committed.)
 - Create the database once: `CREATE DATABASE smartserve CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
 
 ### Backend
