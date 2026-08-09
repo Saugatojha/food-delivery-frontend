@@ -56,14 +56,16 @@ server/ (port 5000)
     ├── index.js                 Express app entry
     ├── config/
     │   ├── env.js               PORT, JWT_SECRET, JWT_EXPIRES_IN
-    │   └── database.js          PrismaClient singleton with MySQL (mariadb) driver adapter
+    │   └── database.js          PrismaClient singleton with MySQL (mariadb) driver adapter;
+    │                            allowPublicKeyRetrieval set for MySQL 8 caching_sha2_password over TCP
     ├── middleware/
     │   ├── auth.js              authenticate (JWT verify) + authorize (role check)
     │   └── validate.js          validate() / validateOptional() field checkers
     ├── routes/
     │   ├── auth.js              POST /register (email normalized, unverified), POST /login (403 EMAIL_NOT_VERIFIED until verified), GET /verify-email, POST /resend-verification, GET /me
     │   ├── restaurants.js       GET /, GET /:id/menu
-    │   ├── orders.js            POST / (accepts phone), GET /, GET /tracking/:id, PATCH /:id/status
+    │   ├── orders.js            POST / (accepts phone), GET /, GET /tracking/:id, PATCH /:id/status (role-scoped)
+    │   ├── cart.js              GET /, POST /sync, POST /add, DELETE /:id (authenticated, validates items)
     │   ├── notifications.js     GET /, GET /unread-count, PATCH /:id/read, POST /read-all
     │   ├── upload.js            POST /image (multer → /uploads)
     │   ├── owner.js             GET/POST/PATCH/DELETE /menu (+ image), GET /orders, PATCH /orders/:id/status
@@ -161,7 +163,7 @@ server/
 │   ├── index.js                  Express app, CORS, JSON parsing, mounts all routes.
 │   ├── config/
 │   │   ├── env.js                Reads PORT, JWT_SECRET, JWT_EXPIRES_IN from env.
-│   │   └── database.js           PrismaClient with MySQL (mariadb) driver adapter.
+│   │   └── database.js           PrismaClient with MySQL (mariadb) driver adapter (allowPublicKeyRetrieval for MySQL 8).
 │   ├── middleware/
 │   │   ├── auth.js               authenticate (JWT verify via Authorization header) + authorize (role check).
 │   │   └── validate.js           validate() / validateOptional() field checkers.
@@ -169,6 +171,8 @@ server/
 │   │   ├── auth.js               POST /api/auth/register, POST /api/auth/login, GET /api/auth/verify-email?token=, POST /api/auth/resend-verification, GET /api/auth/me
 │   │   ├── restaurants.js        GET /api/restaurants, GET /api/restaurants/:id/menu
 │   │   ├── orders.js             POST /api/orders (accepts phone), GET /api/orders, GET /api/orders/tracking/:id, PATCH /api/orders/:id/status
+│   │   │                         PATCH status is restricted to owner/rider/admin and verified against restaurant ownership (owner) or the assigned rider
+│   │   ├── cart.js               GET /api/cart, POST /api/cart/sync, POST /api/cart/add, DELETE /api/cart/:id
 │   │   ├── notifications.js      GET /api/notifications, GET /api/notifications/unread-count, PATCH /api/notifications/:id/read, POST /api/notifications/read-all
 │   │   ├── upload.js             POST /api/upload/image (multipart, max 5MB, jpeg/png/gif/webp) → { url }
 │   │   ├── owner.js              GET /api/owner/restaurant, PATCH /api/owner/restaurant, GET /api/owner/orders, /api/owner/orders/:id/status, /api/owner/menu CRUD (+ image)
@@ -245,10 +249,12 @@ Roles progress through these statuses (one step at a time):
 | Role | Flow |
 |---|---|
 | Customer | Pending → Confirmed → Preparing → Out for Delivery → Delivered |
-| Owner | Pending → Confirmed → Preparing → Ready for Pickup → Rejected |
-| Rider | Ready for Pickup → Out for Delivery → Delivered |
+| Owner | Pending → Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered (Rejected allowed from Pending) |
+| Rider | Pending → Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered |
 
 Terminal statuses (cannot transition out): Delivered, Cancelled, Rejected.
+
+> **Owner/rider merge:** when an owner confirms an order (`Pending → Confirmed`), a `Delivery` row is auto-created with `riderId = owner`, so the owner acts as the delivery rider for their own orders. A rider (or the owning rider) may only advance an order they are assigned to.
 
 ---
 
@@ -282,7 +288,18 @@ Emails are normalized (trimmed + lowercased) on register and login. New users mu
 | POST | `/api/orders` | `{ items: [{ menuItemId, restaurantId, quantity }], address, phone?, paymentMethod, deliveryLatitude?, deliveryLongitude? }` | `Order` (owner gets a "New order received" notification) |
 | GET | `/api/orders` | — | `[ Order ]` |
 | GET | `/api/orders/tracking/:id` | — | `Order` with restaurant/delivery coords |
-| PATCH | `/api/orders/:id/status` | `{ status }` | `Order` |
+| PATCH | `/api/orders/:id/status` | `{ status }` | `Order` (owner/rider/admin only; owner must own the restaurant, rider must be assigned) |
+
+### Cart
+
+| Method | Endpoint | Body | Response |
+|---|---|---|---|
+| GET | `/api/cart` | — | `[ CartItem ]` (with `menuItem`) |
+| POST | `/api/cart/sync` | `{ items: [{ menuItemId, restaurantId, quantity }] }` | `[ CartItem ]` — validates every item exists and belongs to the given restaurant, clamps quantity to 1–99, then replaces the user's cart |
+| POST | `/api/cart/add` | `{ menuItemId, restaurantId, quantity }` | `CartItem` — validates item + restaurant, adds or upserts quantity (capped at 99) |
+| DELETE | `/api/cart/:id` | — | `{ message }` |
+
+The cart UX is still client-side (localStorage); the `/api/cart` endpoints are available for server-side sync but are not yet wired into the frontend.
 
 ### Notifications
 
@@ -425,14 +442,14 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 ## Known Limitations
 
 1. **MySQL for dev/prod** — MySQL 8 via Prisma driver adapter; connection URL in `server/.env` (`DATABASE_URL`). For a throwaway setup, use the local `smartserve` database with `root`/`SmartServe@2026` (change before sharing).
-2. **Cart is localStorage** — Cart persists locally but doesn't sync across devices (no backend cart API).
+2. **Cart is localStorage** — Cart persists locally; a backend `/api/cart` API exists (validated `sync`/`add`) but is not yet wired into the frontend, so carts don't sync across devices.
 3. **No real payment** — Payment is mocked. No Stripe/PayPal integration.
 4. **No pagination** — All data loads at once.
 5. **Email verification is dev-only** — `mailer.js` prints verification links to the server console instead of sending real email; wire up an SMTP provider for production.
 6. **Owner-restaurant linking** — Hardcoded via `ownerId`. Admin panel allows assigning owners when adding/editing restaurants.
-7. **Rider assignment** — Manual accept/reject; no automatic dispatch.
+7. **Rider assignment** — The owner is auto-assigned as the delivery rider when an order is confirmed; there is no dispatch to third-party riders.
 8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
-9. **Test coverage** — 50 backend tests + 41 frontend tests + Playwright config (e2e/ directory).
+9. **Test coverage** — 55 backend tests + 47 frontend tests + Playwright config (e2e/ directory).
 
 ---
 
@@ -454,7 +471,7 @@ npm install
 npx prisma migrate dev   # apply migrations (MySQL schema)
 npm run seed             # Re-run seed data (4 users, 7 restaurants, 26 menu items)
 npm run dev              # Dev server with nodemon on port 5000
-npm run test             # Vitest (50 tests)
+npm run test             # Vitest (55 tests)
 npm run reset            # Refuses if port 5000 in use, then prisma migrate reset --force (drop DB, re-migrate, re-seed)
 npm run migrate          # Run prisma migrate dev
 ```
@@ -466,7 +483,7 @@ npm run dev          # Vite dev server with HMR on port 5173
 npm run build        # Production build -> dist/
 npm run preview      # Preview production build
 npm run lint         # ESLint check
-npm run test         # Vitest (41 tests)
+npm run test         # Vitest (47 tests)
 npm run test:e2e     # Playwright E2E tests (requires both servers running)
 ```
 
@@ -551,14 +568,14 @@ A user story is **Done** only when all of the following are true:
 
 ### Velocity & Quality
 
-- **Test suite:** 50 backend + 41 frontend = 91 automated tests, all green.
+- **Test suite:** 55 backend + 47 frontend = 102 automated tests, all green.
 - **Build:** production `vite build` passes.
 - **Working increment at end of every sprint** — demonstrable against the live dev servers.
 
 ### Retrospective notes (Sprint 6)
 
 - **Went well:** 4 independent features shipped in one sprint; schema migration + seed handled cleanly; backend notifications isolated in `utils/notify.js` so routes stay thin.
-- **Improve:** frontend lint has pre-existing errors (Login/Register inline `Eye` components, `set-state-in-effect`) — schedule a tech-debt sprint; e2e Playwright suite not yet run against new auth flow.
+- **Improve:** e2e Playwright suite not yet run against the new auth flow. (The Sprint 6 frontend lint tech-debt — inline `Eye` components and `set-state-in-effect` — was resolved in the hardening pass; `eslint.config.js` now disables the over-aggressive `set-state-in-effect` rule that false-positives on async-fetch effects.)
 
 ---
 

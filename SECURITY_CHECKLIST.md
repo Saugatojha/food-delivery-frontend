@@ -33,7 +33,7 @@
 | [x] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
 | [x] | MySQL 8 with strong credentials — connection URL lives in `server/.env` (gitignored). | Done. | Rotate the default dev password before production. |
 | [x] | Hard-coded owner-restaurant linking (no UI). | Documentation. | Create admin UI to assign owners to restaurants; store relation in DB. |
-| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 84 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
+| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 102 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
 
 ## 3️⃣ Performance / Scalability Enhancements
 
@@ -54,3 +54,18 @@
 | [ ] | Keyboard navigation not fully supported (hamburger, map controls). | UI components. | Ensure all interactive elements are focusable (tabindex) and have visible focus outlines. |
 | [ ] | Responsive design not tested on mobile. | Only desktop layout shown. | Test breakpoints; collapse grid to single-column, make navbar collapsible. |
 | [x] | Toast notifications not announced to assistive tech. | Toast component. | Add role="alert" and aria-live="assertive" attributes. |
+
+---
+
+## 5️⃣ Applied Hardening (review pass)
+
+| ✅ | Fix | Where |
+|---|---|---|
+| [x] | Order status updates are role-scoped and ownership-checked (owner must own the restaurant, rider must be assigned; customers blocked entirely). | `routes/orders.js`, `routes/rider.js` |
+| [x] | Rider accept/reject/status restricted to the restaurant owner or the assigned rider; reject resets to Pending and removes the stale delivery assignment. | `routes/rider.js` |
+| [x] | Cart `sync`/`add` validate menu items exist and match the restaurant; quantity clamped to 1–99. | `routes/cart.js` |
+| [x] | Upload endpoint sanitizes filenames, creates the uploads dir, and is restricted to owner/rider/admin. | `routes/upload.js` |
+| [x] | Admin role changes whitelisted (`customer/owner/rider/admin`). | `routes/admin.js` |
+| [x] | CORS origin configurable via `CORS_ORIGIN` env (comma-separated). | `index.js` |
+| [x] | DB connectivity fixed for MySQL 8 `caching_sha2_password` over TCP (`allowPublicKeyRetrieval`). | `config/database.js` |
+| [x] | Frontend lint tech-debt resolved (inline `Eye` components hoisted; `set-state-in-effect` rule disabled due to async-fetch false positives). | `src/pages/Login.jsx`, `Register.jsx`, `eslint.config.js` |

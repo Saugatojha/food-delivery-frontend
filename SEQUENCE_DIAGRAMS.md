@@ -142,6 +142,8 @@ sequenceDiagram
         F->>F: Confirmation modal
         O->>F: Confirm
         F->>S: PATCH /api/owner/orders/:id/status { status: "Confirmed" }
+        S->>S: Validate owner owns restaurant (restaurantId matches)
+        S->>D: delivery.upsert (riderId = owner, status "assigned")  // auto-assign owner as rider
         S->>D: order.update (Pending → Confirmed)
         D-->>S: updated order
         S->>S: notifyCustomer("Order Confirmed")
@@ -158,7 +160,7 @@ sequenceDiagram
         F-->>O: Order marked Rejected
     end
 
-    Note over O,S: Owner then advances: Confirmed → Preparing → Ready for Pickup
+    Note over O,S: Owner then advances: Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered<br/>(the owner is the auto-assigned rider for their own orders)
 ```
 
 ---
@@ -180,10 +182,13 @@ sequenceDiagram
     S-->>F: 200 orders
     F-->>R: Available order cards + mini map (location = Kathmandu default)
 
+    Note over R,D: Accept/reject/status are scoped via canManageOrder:<br/>the restaurant owner OR the already-assigned rider.<br/>Since the owner is auto-assigned on Confirm, this is effectively the owner.
+
     alt Accept
         R->>F: Accept delivery
         F->>S: PATCH /api/rider/orders/:id/accept
-        S->>D: delivery.upsert (riderId = rider)
+        S->>S: canManageOrder(order, user) → owner or assigned rider?
+        S->>D: delivery.upsert (riderId = user, status "assigned")
         S->>D: order.update (Ready for Pickup → Out for Delivery)
         D-->>S: updated order + delivery
         S-->>F: 200 updated
@@ -191,7 +196,7 @@ sequenceDiagram
     else Pass
         R->>F: Pass on delivery
         F->>S: PATCH /api/rider/orders/:id/reject
-        S->>D: order.update (→ Pending)
+        S->>D: order.update (→ Pending) + delivery.deleteMany (unassigns rider)
         D-->>S: order
         S-->>F: 200 { message }
         F-->>R: Removed from available list
@@ -396,8 +401,8 @@ sequenceDiagram
 
 - Every `/api/*` mutating route is behind `csrfProtection` (skipped in `NODE_ENV=test`).
 - Auth uses `authenticate` (JWT) + `authorize(role)` middleware per route group.
-- Order status changes are validated with `isValidTransition` / `TERMINAL_STATUSES` to block illegal transitions and terminal-order edits.
+- Order status changes are validated with `isValidTransition` / `TERMINAL_STATUSES` **and** scoped to ownership: an owner must own the order's restaurant, a rider must be the assigned rider, and customers are blocked entirely.
 - Passwords are hashed with bcrypt; no secrets committed.
 - Email verification gates the first login (`403 EMAIL_NOT_VERIFIED`); the verify/resend routes rotate the one-time token with a 24h expiry.
 - Notification endpoints are authenticated and scoped to the requesting `userId` (no cross-user reads/writes).
-- Uploads are behind `authenticate`, size-limited (5MB) and filtered to `jpeg/png/gif/webp` mime types.
+- Uploads are behind `authenticate` + `authorize('owner','rider','admin')`, size-limited (5MB), filtered to `jpeg/png/gif/webp` mime types, and filenames are sanitized.
