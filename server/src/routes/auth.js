@@ -93,7 +93,7 @@ router.post('/register', registerLimiter, validate('name', 'email', 'password'),
       },
     })
 
-    const emailResult = sendVerificationEmail(user, verificationToken)
+    const emailResult = await sendVerificationEmail(user, verificationToken)
 
     res.status(201).json({
       message: 'Registration successful. Please verify your email to login.',
@@ -180,7 +180,7 @@ router.post('/resend-verification', validate('login'), async (req, res) => {
 
     await prisma.user.update({ where: { id: user.id }, data: { verificationToken, verificationExpires } })
 
-    const emailResult = sendVerificationEmail(user, verificationToken)
+    const emailResult = await sendVerificationEmail(user, verificationToken)
 
     res.json({
       message: 'Verification email sent.',
