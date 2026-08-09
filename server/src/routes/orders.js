@@ -93,18 +93,33 @@ router.get('/tracking/:id', authenticate, async (req, res) => {
 router.patch('/:id/status', authenticate, validate('status'), async (req, res) => {
   try {
     const { status } = req.body
+    const role = req.user.role
+    if (!['owner', 'rider', 'admin'].includes(role)) {
+      return forbidden(res, 'Not authorized to update order status')
+    }
 
     const order = await prisma.order.findUnique({ where: { id: Number(req.params.id) } })
     if (!order) return notFound(res, 'Order not found')
 
-    const current = order.status
-    if (TERMINAL_STATUSES.includes(current)) {
+    if (TERMINAL_STATUSES.includes(order.status)) {
       return badRequest(res, 'Cannot update a terminal order')
     }
 
-    const role = req.user.role
-    if (!isValidTransition(current, status, role)) {
-      return forbidden(res, `Invalid transition from ${current} to ${status} for role ${role}`)
+    if (role === 'owner') {
+      const restaurant = await prisma.restaurant.findUnique({ where: { ownerId: req.user.id } })
+      if (!restaurant || restaurant.id !== order.restaurantId) {
+        return forbidden(res, 'Not your restaurant')
+      }
+    } else if (role === 'rider') {
+      const assigned = await prisma.delivery.findUnique({ where: { orderId: order.id } })
+      if (!assigned || assigned.riderId !== req.user.id) {
+        return forbidden(res, 'Not your delivery')
+      }
+    }
+
+    const flowRole = role === 'admin' ? 'owner' : role
+    if (!isValidTransition(order.status, status, flowRole)) {
+      return forbidden(res, `Invalid transition from ${order.status} to ${status} for role ${role}`)
     }
 
     const updated = await prisma.order.update({

@@ -1,11 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { formatPrice, CUISINE_CATEGORIES, CATEGORY_SUBCATEGORIES } from '../../data/mock'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
 import ImageUpload from '../../components/ImageUpload'
 import MapView from '../../components/MapView'
-import EmptyState from '../../components/EmptyState'
 import api from '../../api/client'
 import { updateOwnerOrderStatus, getRiderEarnings, STATUS_FLOWS, getNextStatus } from '../../services/orders'
 
@@ -29,7 +27,6 @@ function playNotification() {
 }
 
 export default function OwnerDashboard() {
-  const { user } = useAuth()
   const { showToast } = useToast()
   const [tab, setTab] = useState('orders')
   const [restaurant, setRestaurant] = useState(null)
@@ -44,7 +41,7 @@ export default function OwnerDashboard() {
   const [editingItem, setEditingItem] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
 
-  const orderCountRef = useState(0)
+  const orderCountRef = useRef(0)
 
   const fetchData = useCallback(async () => {
     try {
@@ -56,10 +53,10 @@ export default function OwnerDashboard() {
       setRestaurant(r.data)
       setOrders(o.data)
       setMenuItems(m.data)
-      if (o.data.length > orderCountRef[0]) {
+      if (o.data.length > orderCountRef.current) {
         playNotification()
       }
-      orderCountRef[0] = o.data.length
+      orderCountRef.current = o.data.length
     } catch { }
     setLoading(false)
   }, [])

@@ -10,6 +10,13 @@ const router = express.Router()
 
 router.use(authenticate, authorize('rider', 'owner'))
 
+async function canManageOrder(order, userId) {
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: order.restaurantId } })
+  if (restaurant?.ownerId === userId) return true
+  const assigned = await prisma.delivery.findUnique({ where: { orderId: order.id } })
+  return Boolean(assigned && assigned.riderId === userId)
+}
+
 router.get('/deliveries', async (req, res) => {
   try {
     const orders = await prisma.order.findMany({
@@ -42,6 +49,10 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
 
     const order = await prisma.order.findUnique({ where: { id: Number(req.params.id) } })
     if (!order) return notFound(res, 'Order not found')
+
+    if (!(await canManageOrder(order, req.user.id))) {
+      return res.status(403).json({ error: 'Not your delivery' })
+    }
 
     if (TERMINAL_STATUSES.includes(order.status)) {
       return badRequest(res, 'Cannot update a terminal order')
@@ -77,7 +88,11 @@ router.patch('/orders/:id/accept', async (req, res) => {
     if (!order) return notFound(res, 'Order not found')
     if (order.status !== 'Ready for Pickup') return badRequest(res, 'Order is not ready for pickup')
 
-    const delivery = await prisma.delivery.upsert({
+    if (!(await canManageOrder(order, req.user.id))) {
+      return res.status(403).json({ error: 'Not your delivery' })
+    }
+
+    await prisma.delivery.upsert({
       where: { orderId: order.id },
       update: { riderId: req.user.id, status: 'assigned' },
       create: { orderId: order.id, riderId: req.user.id, address: order.address, status: 'assigned' },
@@ -98,11 +113,17 @@ router.patch('/orders/:id/reject', async (req, res) => {
   try {
     const order = await prisma.order.findUnique({ where: { id: Number(req.params.id) } })
     if (!order) return notFound(res, 'Order not found')
+    if (order.status !== 'Ready for Pickup') return badRequest(res, 'Order is not ready for pickup')
+
+    if (!(await canManageOrder(order, req.user.id))) {
+      return res.status(403).json({ error: 'Not your delivery' })
+    }
 
     await prisma.order.update({
       where: { id: order.id },
       data: { status: 'Pending' },
     })
+    await prisma.delivery.deleteMany({ where: { orderId: order.id } })
     res.json({ message: 'Delivery rejected' })
   } catch (err) {
     serverError(res, 'Failed to reject delivery')

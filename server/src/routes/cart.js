@@ -25,17 +25,25 @@ router.post('/sync', async (req, res) => {
     const { items } = req.body
     if (!Array.isArray(items)) return badRequest(res, 'Items array required')
 
+    const valid = []
+    for (const i of items) {
+      const menuItem = await prisma.menuItem.findUnique({ where: { id: Number(i.menuItemId) } })
+      if (!menuItem) return badRequest(res, `Menu item ${i.menuItemId} not found`)
+      if (menuItem.restaurantId !== Number(i.restaurantId)) {
+        return badRequest(res, `Menu item ${i.menuItemId} does not belong to restaurant ${i.restaurantId}`)
+      }
+      valid.push({
+        userId: req.user.id,
+        menuItemId: menuItem.id,
+        restaurantId: menuItem.restaurantId,
+        quantity: Math.min(99, Math.max(1, Math.floor(Number(i.quantity) || 1))),
+      })
+    }
+
     await prisma.cartItem.deleteMany({ where: { userId: req.user.id } })
 
-    if (items.length > 0) {
-      await prisma.cartItem.createMany({
-        data: items.map(i => ({
-          userId: req.user.id,
-          menuItemId: i.menuItemId,
-          restaurantId: i.restaurantId,
-          quantity: i.quantity || 1,
-        })),
-      })
+    if (valid.length > 0) {
+      await prisma.cartItem.createMany({ data: valid })
     }
 
     const saved = await prisma.cartItem.findMany({
@@ -53,21 +61,28 @@ router.post('/add', async (req, res) => {
     const { menuItemId, restaurantId, quantity } = req.body
     if (!menuItemId || !restaurantId) return badRequest(res, 'menuItemId and restaurantId required')
 
+    const menuItem = await prisma.menuItem.findUnique({ where: { id: Number(menuItemId) } })
+    if (!menuItem) return badRequest(res, 'Menu item not found')
+    if (menuItem.restaurantId !== Number(restaurantId)) {
+      return badRequest(res, 'Menu item does not belong to this restaurant')
+    }
+    const qty = Math.min(99, Math.max(1, Math.floor(Number(quantity) || 1)))
+
     const existing = await prisma.cartItem.findFirst({
-      where: { userId: req.user.id, menuItemId },
+      where: { userId: req.user.id, menuItemId: menuItem.id },
     })
 
     if (existing) {
       const updated = await prisma.cartItem.update({
         where: { id: existing.id },
-        data: { quantity: existing.quantity + (quantity || 1) },
+        data: { quantity: Math.min(99, existing.quantity + qty) },
         include: { menuItem: true },
       })
       return res.json(updated)
     }
 
     const item = await prisma.cartItem.create({
-      data: { userId: req.user.id, menuItemId, restaurantId, quantity: quantity || 1 },
+      data: { userId: req.user.id, menuItemId: menuItem.id, restaurantId: menuItem.restaurantId, quantity: qty },
       include: { menuItem: true },
     })
     res.status(201).json(item)

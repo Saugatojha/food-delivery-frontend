@@ -1,10 +1,12 @@
 const express = require('express')
 const prisma = require('../config/database')
 const { authenticate, authorize } = require('../middleware/auth')
-const { notFound, serverError } = require('../utils/errors')
+const { badRequest, notFound, serverError } = require('../utils/errors')
 const { validate } = require('../middleware/validate')
 
 const router = express.Router()
+
+const VALID_ROLES = ['customer', 'owner', 'rider', 'admin']
 
 router.use(authenticate, authorize('admin'))
 
@@ -40,6 +42,9 @@ router.patch('/users/:id', async (req, res) => {
     const id = Number(req.params.id)
     const user = await prisma.user.findUnique({ where: { id } })
     if (!user) return notFound(res, 'User not found')
+    if (role !== undefined && !VALID_ROLES.includes(role)) {
+      return badRequest(res, `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`)
+    }
     const updated = await prisma.user.update({
       where: { id },
       data: { role: role || undefined, restaurantId: restaurantId !== undefined ? restaurantId : undefined },

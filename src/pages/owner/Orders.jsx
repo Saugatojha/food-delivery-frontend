@@ -3,7 +3,7 @@ import { formatPrice } from '../../data/mock'
 import { useToast } from '../../context/ToastContext'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
 import {
-  updateOrderStatus,
+  updateOwnerOrderStatus,
   STATUS_FLOWS,
   getNextStatus,
 } from '../../services/orders'
@@ -26,7 +26,7 @@ export default function OwnerOrders() {
 
   const changeStatus = async (orderId, status) => {
     try {
-      await updateOrderStatus(orderId, status)
+      await updateOwnerOrderStatus(orderId, status)
       const { data } = await api.get('/owner/orders')
       setOrders(data)
       showToast(`Order #${orderId} → ${status}`, 'success')

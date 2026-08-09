@@ -1,12 +1,20 @@
 const express = require('express')
 const multer = require('multer')
 const path = require('path')
-const { authenticate } = require('../middleware/auth')
+const fs = require('fs')
+const { authenticate, authorize } = require('../middleware/auth')
 const { serverError } = require('../utils/errors')
 
+const uploadsDir = path.join(__dirname, '..', '..', 'uploads')
+fs.mkdirSync(uploadsDir, { recursive: true })
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '..', '..', 'uploads')),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`),
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const safeBase = file.originalname.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '-').slice(0, 80)
+    const ext = path.extname(file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '')
+    cb(null, `${Date.now()}-${safeBase || 'image'}${ext}`)
+  },
 })
 
 const upload = multer({
@@ -21,7 +29,7 @@ const upload = multer({
 
 const router = express.Router()
 
-router.post('/image', authenticate, (req, res) => {
+router.post('/image', authenticate, authorize('owner', 'rider', 'admin'), (req, res) => {
   upload.single('image')(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) return res.status(400).json({ error: err.message })

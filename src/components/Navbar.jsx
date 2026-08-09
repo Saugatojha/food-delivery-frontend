@@ -50,13 +50,6 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [])
 
-  useEffect(() => {
-    const update = () => setCartQty(getCart().reduce((s, i) => s + i.qty, 0))
-    update()
-    window.addEventListener('cart-update', update)
-    return () => window.removeEventListener('cart-update', update)
-  }, [])
-
   return (
     <nav className="bg-orange-500 text-white px-4 sm:px-6 py-3 flex items-center justify-between">
       <Link to={user ? '/' : '/login'} className={`text-xl font-bold ${FOCUS_RING}`} aria-label="Home">Smart Serve</Link>

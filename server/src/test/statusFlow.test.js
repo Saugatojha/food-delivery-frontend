@@ -11,7 +11,7 @@ describe('FLOWS', () => {
   })
 
   it('defines rider flow', () => {
-    expect(FLOWS.rider).toEqual(['Ready for Pickup', 'Out for Delivery', 'Delivered'])
+    expect(FLOWS.rider).toEqual(['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered'])
   })
 })
 
@@ -20,6 +20,10 @@ describe('getAllowedTransitions', () => {
     expect(getAllowedTransitions('customer', 'Pending')).toEqual(['Confirmed'])
     expect(getAllowedTransitions('owner', 'Preparing')).toEqual(['Ready for Pickup'])
     expect(getAllowedTransitions('rider', 'Out for Delivery')).toEqual(['Delivered'])
+  })
+
+  it('allows owner to accept or decline a pending order', () => {
+    expect(getAllowedTransitions('owner', 'Pending')).toEqual(['Confirmed', 'Rejected'])
   })
 
   it('returns empty array at end of flow', () => {
@@ -53,6 +57,7 @@ describe('getNextStatus', () => {
 describe('isValidTransition', () => {
   it('allows valid single-step transitions', () => {
     expect(isValidTransition('Pending', 'Confirmed', 'owner')).toBe(true)
+    expect(isValidTransition('Pending', 'Rejected', 'owner')).toBe(true)
     expect(isValidTransition('Ready for Pickup', 'Out for Delivery', 'rider')).toBe(true)
   })
 

@@ -1,7 +1,7 @@
 const FLOWS = {
   customer: ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered'],
   owner: ['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered', 'Rejected'],
-  rider: ['Ready for Pickup', 'Out for Delivery', 'Delivered'],
+  rider: ['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered'],
 }
 
 function getAllowedTransitions(role, currentStatus) {
@@ -9,6 +9,7 @@ function getAllowedTransitions(role, currentStatus) {
   if (!flow) return []
   const idx = flow.indexOf(currentStatus)
   if (idx === -1 || idx === flow.length - 1) return []
+  if (role === 'owner' && currentStatus === 'Pending') return ['Confirmed', 'Rejected']
   return [flow[idx + 1]]
 }
 
