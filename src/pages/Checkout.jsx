@@ -3,6 +3,7 @@ import { useNavigate, Navigate } from 'react-router-dom'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, calcTotal, MOCK_RESTAURANTS } from '../data/mock'
 import { getCart, saveCart, submitOrder, getDeliveryLocation, clearDeliveryLocation } from '../services/orders'
+import { reverseGeocode, formatDeliveryAddress } from '../utils/location'
 import MapView from '../components/MapView'
 
 const PAYMENT_STEPS = ['Processing payment', 'Verifying card', 'Confirming order']
@@ -11,7 +12,7 @@ export default function Checkout() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const savedLocation = getDeliveryLocation()
-  const [address, setAddress] = useState('')
+  const [address, setAddress] = useState(savedLocation?.address || '')
   const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [placing, setPlacing] = useState(false)
@@ -32,8 +33,13 @@ export default function Checkout() {
   }
 
   const handleMapClick = (latlng) => {
-    setDeliveryPos(latlng)
+    const pos = { lat: latlng.lat, lng: latlng.lng }
+    setDeliveryPos(pos)
     setErrors(p => ({ ...p, location: '' }))
+    const place = reverseGeocode(pos.lat, pos.lng)
+    if (place) {
+      setAddress(a => (a.trim() ? a : formatDeliveryAddress({ area: place.area, city: place.city })))
+    }
   }
 
   const useCurrentLocation = () => {
@@ -44,6 +50,10 @@ export default function Checkout() {
         setDeliveryPos({ lat: pos.coords.latitude, lng: pos.coords.longitude })
         setLocating(false)
         setErrors(p => ({ ...p, location: '' }))
+        const place = reverseGeocode(pos.coords.latitude, pos.coords.longitude)
+        if (place) {
+          setAddress(a => (a.trim() ? a : formatDeliveryAddress({ area: place.area, city: place.city })))
+        }
         showToast('Location detected', 'success')
       },
       () => {
@@ -148,7 +158,14 @@ export default function Checkout() {
           />
         </div>
         {deliveryPos ? (
-          <p className="text-xs text-green-600 font-medium mt-1">Delivery location set: {deliveryPos.lat.toFixed(4)}, {deliveryPos.lng.toFixed(4)}</p>
+          (() => {
+            const place = reverseGeocode(deliveryPos.lat, deliveryPos.lng)
+            return (
+              <p className="text-xs text-green-600 font-medium mt-1">
+                📍 {place ? `${place.area}, ${place.city}` : `${deliveryPos.lat.toFixed(4)}, ${deliveryPos.lng.toFixed(4)}`} <span className="text-gray-400">({deliveryPos.lat.toFixed(4)}, {deliveryPos.lng.toFixed(4)})</span>
+              </p>
+            )
+          })()
         ) : (
           <p className="text-xs text-gray-400 mt-1">Click on the map to set delivery location (or use current location)</p>
         )}
