@@ -41,20 +41,10 @@ function usePolling(fn, ms = POLL_MS) {
   }, [ms])
 }
 
-function simulateRiderLocation(order) {
-  if (order.status === 'Out for Delivery' && order.restaurant?.latitude && order.deliveryLatitude) {
-    return {
-      latitude: (order.restaurant.latitude + order.deliveryLatitude) / 2,
-      longitude: (order.restaurant.longitude + order.deliveryLongitude) / 2,
-    }
-  }
-  if (order.status === 'Out for Delivery' && order.restaurantLatitude && order.deliveryLatitude) {
-    return {
-      latitude: (order.restaurantLatitude + order.deliveryLatitude) / 2,
-      longitude: (order.restaurantLongitude + order.deliveryLongitude) / 2,
-    }
-  }
-  return null
+function getRiderPosition(order) {
+  const { riderLatitude, riderLongitude } = order.delivery || {}
+  if (riderLatitude == null || riderLongitude == null) return null
+  return { latitude: riderLatitude, longitude: riderLongitude }
 }
 
 export default function OrderTracking() {
@@ -95,7 +85,7 @@ export default function OrderTracking() {
         const delLat = order.deliveryLatitude
         const delLng = order.deliveryLongitude
         const hasMap = restLat && delLat
-        const rider = simulateRiderLocation(order)
+        const rider = getRiderPosition(order)
         return (
           <div key={order.id} className="border rounded-lg p-4 sm:p-6 mb-4">
             <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
