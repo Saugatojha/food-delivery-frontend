@@ -16,15 +16,21 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [cuisineFilter, setCuisineFilter] = useState('All')
   const [sort, setSort] = useState('')
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(id)
+  }, [search])
 
   const loadRestaurants = useCallback(() => {
     setLoading(true)
     setError(false)
     const params = { page, limit: 12 }
-    if (search.trim()) params.search = search.trim()
+    if (debouncedSearch.trim()) params.search = debouncedSearch.trim()
     if (cuisineFilter !== 'All') params.cuisine = cuisineFilter
     if (sort === 'rating') params.sort = 'rating'
     if (sort === 'delivery') params.sort = 'delivery'
@@ -38,7 +44,7 @@ export default function Home() {
       setError(true)
       showToast('Could not load restaurants. Please try again.', 'error')
     }).finally(() => setLoading(false))
-  }, [search, cuisineFilter, sort, page, showToast])
+  }, [debouncedSearch, cuisineFilter, sort, page, showToast])
 
   useEffect(() => {
     loadRestaurants()

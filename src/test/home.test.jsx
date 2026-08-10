@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Home from '../pages/Home'
 import api from '../api/client'
@@ -74,5 +74,24 @@ describe('Home error handling', () => {
     fireEvent.click(retry)
     expect(await screen.findByText('Pizza Palace')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('Home search debounce', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('waits 300ms after typing before refetching', async () => {
+    vi.useFakeTimers()
+    api.get.mockResolvedValue({ data: { restaurants: [], total: 0, totalPages: 1 } })
+    await act(async () => { render(<MemoryRouter><Home /></MemoryRouter>) })
+    const input = screen.getByRole('textbox', { name: 'Search restaurants' })
+    const callsBefore = api.get.mock.calls.length
+    fireEvent.change(input, { target: { value: 'piz' } })
+    expect(api.get.mock.calls.length).toBe(callsBefore)
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(api.get.mock.calls.length).toBe(callsBefore + 1)
+    expect(api.get.mock.calls.at(-1)[1].params.search).toBe('piz')
   })
 })
