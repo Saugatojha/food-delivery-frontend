@@ -7,7 +7,7 @@
 | [x] | JWT stored in localStorage – vulnerable to XSS theft. | src/api/client.js (readJson / writeJson) | Store JWT in httpOnly + Secure cookies; set SameSite=Strict. |
 | [x] | No rate-limiting / brute-force protection on auth routes. | server/src/routes/auth.js (login / register) | Add express-rate-limit (e.g., 5 attempts/10 min) or similar middleware. |
 | [x] | Weak password policy – only presence validated. | middleware/validate.js | Enforce min 8 chars, include numbers/symbols, use zxcvbn strength estimator. |
-| [ ] | No email verification – accounts activated instantly. | auth.js registration returns token directly | Send verification email with one-time token; activate only after click. |
+| [x] | No email verification – accounts activated instantly. | auth.js registration returns token directly | Done: one-time token emailed on register; login blocked until verified (403 EMAIL_NOT_VERIFIED); resend endpoint. |
 | [x] | Verbose error messages expose account existence. | auth.js returns "Invalid email or password", "User not found". | Return generic "Invalid credentials"; log details server-side. |
 | [x] | Missing CSRF protection (if switching to cookies). | None yet | When using cookies, add csurf or double-submit token. |
 | [x] | Permissive CORS (likely *). | Not inspected yet | Restrict origin to your domain(s); enable only required methods/headers. |
@@ -33,7 +33,7 @@
 | [x] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
 | [x] | MySQL 8 with strong credentials — connection URL lives in `server/.env` (gitignored). | Done. | Rotate the default dev password before production. |
 | [x] | Hard-coded owner-restaurant linking (no UI). | Documentation. | Create admin UI to assign owners to restaurants; store relation in DB. |
-| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 119 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
+| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 123 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
 
 ## 3️⃣ Performance / Scalability Enhancements
 
@@ -64,7 +64,7 @@
 | [x] | Order status updates are role-scoped and ownership-checked (owner must own the restaurant, rider must be assigned; customers blocked entirely). | `routes/orders.js`, `routes/rider.js` |
 | [x] | Rider accept/reject/status restricted to the restaurant owner or the assigned rider; reject resets to Pending and removes the stale delivery assignment. | `routes/rider.js` |
 | [x] | Cart `sync`/`add` validate menu items exist and match the restaurant; quantity clamped to 1–99. | `routes/cart.js` |
-| [x] | Upload endpoint sanitizes filenames, creates the uploads dir, and is restricted to owner/rider/admin. | `routes/upload.js` |
+| [x] | Upload endpoint sanitizes filenames, whitelists image extensions (jpg/png/gif/webp), verifies magic bytes so disguised executables/HTML are rejected, and is restricted to owner/rider/admin. | `routes/upload.js` |
 | [x] | Admin role changes whitelisted (`customer/owner/rider/admin`). | `routes/admin.js` |
 | [x] | CORS origin configurable via `CORS_ORIGIN` env (comma-separated). | `index.js` |
 | [x] | DB connectivity fixed for MySQL 8 `caching_sha2_password` over TCP (`allowPublicKeyRetrieval`). | `config/database.js` |
