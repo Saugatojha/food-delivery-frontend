@@ -60,7 +60,7 @@ router.post('/image', authenticate, authorize('owner', 'rider', 'admin'), (req, 
       fs.unlink(req.file.path, () => {})
       return res.status(400).json({ error: 'File content does not match its declared image type' })
     }
-    const origin = process.env.APP_URL || `${req.protocol}://${req.get('host') || 'localhost:5000'}`
+    const origin = process.env.APP_URL || `${req.protocol}://${req.get('host') || 'localhost:5001'}`
     res.json({ url: `${origin}/uploads/${req.file.filename}` })
   })
 })

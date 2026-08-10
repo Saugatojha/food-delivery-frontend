@@ -56,3 +56,25 @@ NODE_ENV=production npm run dev
 ```
 
 Then register a user. Note: with `onboarding@resend.dev` as the sender, Resend only delivers to the email registered on your Resend account. After adding a verified domain, set `RESEND_FROM="SmartServe <noreply@yourdomain.com>"`.
+
+## 2026-08-10 — Move backend port 5000 → 5001
+
+### Change 5: Fix "cannot reach server" — port conflict with macOS AirPlay
+
+**Problem:** The backend was not reachable on port 5000. Root cause: macOS Control Center ("AirPlay Receiver") owns port 5000 (and 7000) by default, so the Express server hit `EADDRINUSE` and never bound. Confirmed with `lsof` and a manual bind test (`5000 FAIL: EADDRINUSE`).
+
+**Fix:** Changed the backend port to 5001 everywhere:
+
+- `server/.env` → `PORT=5001`
+- `server/.env.example` → `PORT=5001`
+- `server/src/config/env.js` → default port `5001`
+- `server/src/utils/mailer.js` → verify link defaults to `http://localhost:5001`
+- `server/src/routes/upload.js` → upload origin default `localhost:5001`
+- `src/api/client.js` → axios baseURL defaults to `http://localhost:5001/api`
+- `src/pages/Register.jsx` → error message mentions port 5001
+- `server/prisma/reset.js` → port guard checks 5001
+- `DOCUMENTATION.md` → all port references updated
+
+**Verification:** `npm run dev` → `Server running on port 5001`; `lsof` shows node listening on 5001; `curl /api/health` returns `{"status":"ok"}`.
+
+**Other devices:** no impact — changes are committed, so anyone cloning the repo and copying `.env.example` uses 5001 automatically. Existing teammates with a local `.env` must set `PORT=5001`.

@@ -11,7 +11,7 @@ if (jwtSecret.length < 32 && process.env.NODE_ENV === 'production') {
 }
 
 module.exports = {
-  port: process.env.PORT || 5000,
+  port: process.env.PORT || 5001,
   jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '2h',
 }

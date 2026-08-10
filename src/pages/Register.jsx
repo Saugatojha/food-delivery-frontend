@@ -68,7 +68,7 @@ export default function Register() {
         setTimeout(() => showToast(`Dev link: ${data.devLink}`, 'info'), 500)
       }
     } catch (err) {
-      const msg = err?.response ? (err.response.data?.error || 'Registration failed') : 'Cannot reach server — is it running on port 5000?'
+      const msg = err?.response ? (err.response.data?.error || 'Registration failed') : 'Cannot reach server — is it running on port 5001?'
       showToast(msg, 'error')
       console.error('Register error:', err)
     } finally {

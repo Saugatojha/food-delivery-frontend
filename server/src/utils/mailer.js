@@ -4,7 +4,7 @@ const logger = require('../config/logger')
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 function verificationUrl(token) {
-  const origin = process.env.APP_URL || 'http://localhost:5000'
+  const origin = process.env.APP_URL || 'http://localhost:5001'
   return `${origin}/api/auth/verify-email?token=${token}`
 }
 
