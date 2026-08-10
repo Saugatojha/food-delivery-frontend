@@ -112,7 +112,7 @@ src/
 │   └── client.js                Axios -> VITE_API_URL (default localhost:5000/api). 401 clears auth + redirects.
 ├── context/
 │   ├── AuthContext.jsx           User state, login/register/logout/verifyEmail/resendVerification via real API. Emails trimmed + lowercased.
-│   ├── ToastContext.jsx          Toast notification system. Auto-dismiss after 3s.
+│   ├── ToastContext.jsx          Toast notification system. Auto-dismiss after 3s, manual dismiss button, max 3 visible toasts.
 │   └── NotificationContext.jsx   Polls /notifications/unread-count (15s), bell badge, Notification API browser push.
 ├── utils/
 │   ├── storage.js                Safe readJson/writeJson/removeKeys.
@@ -138,7 +138,7 @@ src/
 │   ├── Restaurant.jsx            Map showing restaurant location + menu items (with images) from API.
 │   ├── Cart.jsx                  Cart items with qty +/-/remove + total + empty state + delivery-location map picker → proceeds to checkout.
 │   ├── Checkout.jsx              Phone + address + map picker (prefilled from cart location) + inline validation. Sends delivery coords to API.
-│   ├── OrderTracking.jsx         5-step progress bar + map + markers + simulated rider + phone display.
+│   ├── OrderTracking.jsx         5-step progress bar + map + real rider coords marker (when provided) + phone display; polls every 15s, paused when the tab is hidden, refetches on focus.
 │   ├── owner/
 │   │   └── Dashboard.jsx         3-tab: Orders (accept/decline with confirm modal + audio), Menu (category-grouped + add/edit), Settings.
 │   ├── rider/
@@ -361,7 +361,8 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 
 ### Home Page
 - **Map** — Leaflet/OSM map showing all 7 restaurants as orange **R** markers at their Kathmandu locations. Click marker for popup with name + cuisine.
-- **Search** — Text filter by restaurant name or cuisine.
+- **Search** — Text filter by restaurant name or cuisine, **debounced 300ms** so the request fires only after the user pauses typing.
+- **Error / retry** — If the restaurant list fails to load, an inline error state with a **Retry** button and an error toast is shown.
 - **Cuisine chips** — All / Italian / American / Japanese / Mexican / Indian / Chinese / Nepali buttons.
 - **Sort** — Top Rated, Fastest Delivery, Open Now.
 - **Location label** — "Delivering to Kathmandu, Nepal".
@@ -431,7 +432,7 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 ### OSRM Road Routing
 - **RoadRoute component** — Fetches driving route geometry from the public OSRM API (`router.project-osrm.org`).
 - **Real polyline** — Replaces the previous straight-line polyline with the actual road path.
-- **Fallback** — If the OSRM fetch fails, no route is drawn (silent failure).
+- **Fallback** — If the OSRM fetch fails, no route is drawn and a small non-blocking "Route unavailable" note is shown instead of failing silently.
 
 ### Accessibility
 - **`aria-label`** — Added to search input, cuisine filter chips (`aria-pressed`), login/register buttons, checkout actions, place-order, and "use current location" button.
@@ -449,7 +450,7 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 6. **Owner-restaurant linking** — Hardcoded via `ownerId`. Admin panel allows assigning owners when adding/editing restaurants.
 7. **Rider assignment** — The owner is auto-assigned as the delivery rider when an order is confirmed; there is no dispatch to third-party riders.
 8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
-9. **Test coverage** — 55 backend tests + 47 frontend tests + Playwright config (e2e/ directory).
+9. **Test coverage** — 55 backend tests + 64 frontend tests + Playwright config (e2e/ directory).
 
 ---
 
@@ -483,7 +484,7 @@ npm run dev          # Vite dev server with HMR on port 5173
 npm run build        # Production build -> dist/
 npm run preview      # Preview production build
 npm run lint         # ESLint check
-npm run test         # Vitest (47 tests)
+npm run test         # Vitest (64 tests)
 npm run test:e2e     # Playwright E2E tests (requires both servers running)
 ```
 
@@ -565,10 +566,11 @@ A user story is **Done** only when all of the following are true:
 | 5 | Reliability | Security checklist, account lockout, rate limits, accessibility audit, category/subcategory menu system, docs |
 | 6 | Engagement (current) | **Delivery location → checkout (US-01), email verification (US-02), in-app + browser notifications (US-03), image uploads (US-04)** |
 | 7 | Polish (planned) | Tracking polling, checkout wizard, dark mode, performance/lazy routes |
+| 8 | Hardening (bug fixes) | Visibility-aware order tracking polling, real rider coords (no simulated rider), error surfacing (Home retry, Checkout toast, OSRM route note), debounced restaurant search, dismissible + capped toasts |
 
 ### Velocity & Quality
 
-- **Test suite:** 55 backend + 47 frontend = 102 automated tests, all green.
+- **Test suite:** 55 backend + 64 frontend = 119 automated tests, all green.
 - **Build:** production `vite build` passes.
 - **Working increment at end of every sprint** — demonstrable against the live dev servers.
 
