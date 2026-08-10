@@ -1,23 +1,37 @@
+const { Resend } = require('resend')
 const logger = require('../config/logger')
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 function verificationUrl(token) {
   const origin = process.env.APP_URL || 'http://localhost:5000'
   return `${origin}/api/auth/verify-email?token=${token}`
 }
 
-function sendVerificationEmail(user, token) {
+async function sendVerificationEmail(user, token) {
   const link = verificationUrl(token)
   if (process.env.NODE_ENV !== 'production') {
     logger.info(`[DEV EMAIL] To: ${user.email} — Verify your account: ${link}`)
-    console.log('\n============================================')
-    console.log(`VERIFY EMAIL for ${user.email}`)
-    console.log(`Open this link to verify your account:\n${link}`)
-    console.log('============================================\n')
     return { devLink: link }
   }
 
-  // Production: plug in a real mail provider (e.g. nodemailer/Resend/SendGrid) here.
-  logger.info(`Verification email would be sent to ${user.email}`)
+  if (!resend) {
+    logger.error('RESEND_API_KEY is not set — cannot send email in production')
+    throw new Error('RESEND_API_KEY is not configured')
+  }
+
+  const { error } = await resend.emails.send({
+    from: process.env.RESEND_FROM || 'onboarding@resend.dev',
+    to: user.email,
+    subject: 'Verify your email',
+    html: `<p>Hello ${user.name},</p><p>Verify your account to finish registering:</p><a href="${link}">${link}</a>`,
+  })
+
+  if (error) {
+    logger.error({ message: 'Resend send error', error: error.message })
+    throw error
+  }
+
   return {}
 }
 
