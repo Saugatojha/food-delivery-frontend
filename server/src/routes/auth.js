@@ -148,7 +148,7 @@ router.get('/verify-email', async (req, res) => {
     const token = req.query.token
     if (!token) return badRequest(res, 'Verification token is required')
 
-    const user = await prisma.user.findUnique({ where: { verificationToken: token } })
+    const user = await prisma.user.findFirst({ where: { verificationToken: token } })
     if (!user) return badRequest(res, 'Invalid or expired verification token')
 
     if (user.verificationExpires && user.verificationExpires < new Date()) {

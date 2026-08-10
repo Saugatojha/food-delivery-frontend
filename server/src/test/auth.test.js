@@ -96,6 +96,39 @@ describe('GET /api/auth/me', () => {
   })
 })
 
+describe('GET /api/auth/verify-email', () => {
+  const ts = Date.now()
+  const email = `verify${ts}@test.com`
+  const password = 'StrongPass1!'
+  let token
+
+  it('verifies an email via the dev link token, then allows login', async () => {
+    const reg = await request(app).post('/api/auth/register').send({ name: 'Verify Me', email, password })
+    expect(reg.status).toBe(201)
+    expect(reg.body.devLink).toMatch(/\/api\/auth\/verify-email\?token=/)
+    token = new URL(reg.body.devLink).searchParams.get('token')
+    expect(token).toBeTruthy()
+
+    const verify = await request(app).get(`/api/auth/verify-email?token=${token}`)
+    expect(verify.status).toBe(200)
+    expect(verify.body.message).toMatch(/verified/i)
+
+    const login = await request(app).post('/api/auth/login').send({ login: email, password })
+    expect(login.status).toBe(200)
+    expect(login.body.user.emailVerified).toBe(true)
+  })
+
+  it('rejects a missing token', async () => {
+    const res = await request(app).get('/api/auth/verify-email')
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects an invalid token', async () => {
+    const res = await request(app).get('/api/auth/verify-email?token=nonexistent-token')
+    expect(res.status).toBe(400)
+  })
+})
+
 describe('POST /api/auth/register — rate limiting', () => {
   let remaining
   it('starts returning 429 after limit exceeded', async () => {

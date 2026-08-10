@@ -450,7 +450,7 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 6. **Owner-restaurant linking** — Hardcoded via `ownerId`. Admin panel allows assigning owners when adding/editing restaurants.
 7. **Rider assignment** — The owner is auto-assigned as the delivery rider when an order is confirmed; there is no dispatch to third-party riders.
 8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
-9. **Test coverage** — 59 backend tests + 64 frontend tests + Playwright config (e2e/ directory).
+9. **Test coverage** — 62 backend tests + 64 frontend tests + Playwright config (e2e/ directory).
 
 ---
 
@@ -472,7 +472,7 @@ npm install
 npx prisma migrate dev   # apply migrations (MySQL schema)
 npm run seed             # Re-run seed data (4 users, 7 restaurants, 26 menu items)
 npm run dev              # Dev server with nodemon on port 5000
-npm run test             # Vitest (59 tests)
+npm run test             # Vitest (62 tests)
 npm run reset            # Refuses if port 5000 in use, then prisma migrate reset --force (drop DB, re-migrate, re-seed)
 npm run migrate          # Run prisma migrate dev
 ```
@@ -570,7 +570,7 @@ A user story is **Done** only when all of the following are true:
 
 ### Velocity & Quality
 
-- **Test suite:** 59 backend + 64 frontend = 123 automated tests, all green.
+- **Test suite:** 62 backend + 64 frontend = 126 automated tests, all green.
 - **Build:** production `vite build` passes.
 - **Working increment at end of every sprint** — demonstrable against the live dev servers.
 
