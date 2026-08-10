@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 
@@ -66,18 +66,42 @@ function FitBounds({ bounds }) {
   return null
 }
 
-function RoadRoute({ from, to }) {
+function RoadRoute({ from, to, onStart, onSuccess, onFailure }) {
   useMap()
   const [coords, setCoords] = useState(null)
+  const callbacksRef = useRef({ onStart, onSuccess, onFailure })
+  const fromKey = from ? `${from[0]},${from[1]}` : null
+  const toKey = to ? `${to[0]},${to[1]}` : null
 
   useEffect(() => {
-    if (!from || !to) return
-    const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?geometries=geojson`
-    fetch(url).then(r => r.json()).then(data => {
-      const route = data.routes?.[0]?.geometry?.coordinates
-      if (route) setCoords(route.map(c => [c[1], c[0]]))
-    }).catch(() => {})
-  }, [from, to])
+    callbacksRef.current = { onStart, onSuccess, onFailure }
+  })
+
+  useEffect(() => {
+    if (!fromKey || !toKey) return
+    let cancelled = false
+    const [lat1, lng1] = fromKey.split(',')
+    const [lat2, lng2] = toKey.split(',')
+    callbacksRef.current.onStart?.()
+    setCoords(null)
+    const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?geometries=geojson`
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return
+        const route = data.routes?.[0]?.geometry?.coordinates
+        if (route && route.length) {
+          setCoords(route.map(c => [c[1], c[0]]))
+          callbacksRef.current.onSuccess?.()
+        } else {
+          callbacksRef.current.onFailure?.()
+        }
+      })
+      .catch(() => {
+        if (!cancelled) callbacksRef.current.onFailure?.()
+      })
+    return () => { cancelled = true }
+  }, [fromKey, toKey])
 
   return coords ? <Polyline positions={coords} pathOptions={{ color: '#f97316', weight: 3 }} /> : null
 }
@@ -97,6 +121,8 @@ export default function MapView({
   const restaurantPos = restaurant ? [restaurant.latitude, restaurant.longitude] : null
   const deliveryPos = delivery ? [delivery.latitude, delivery.longitude] : null
   const riderPos = rider ? [rider.latitude, rider.longitude] : null
+
+  const [routeFailed, setRouteFailed] = useState(false)
 
   const routePoints = [restaurantPos, deliveryPos].filter(Boolean)
   const restaurantBounds = restaurants ? restaurants.map(r => [r.latitude, r.longitude]) : []
@@ -122,12 +148,18 @@ export default function MapView({
         {deliveryPos && <Marker position={deliveryPos} icon={deliveryIcon} />}
         {riderPos && <Marker position={riderPos} icon={riderIcon} />}
         {routePoints.length === 2 && (
-          <RoadRoute from={routePoints[0]} to={routePoints[1]} />
+          <RoadRoute
+            from={routePoints[0]}
+            to={routePoints[1]}
+            onStart={() => setRouteFailed(false)}
+            onSuccess={() => setRouteFailed(false)}
+            onFailure={() => setRouteFailed(true)}
+          />
         )}
       </MapContainer>
       {showRouteNote && routePoints.length === 2 && (
-        <div className="absolute bottom-1 left-1 bg-white/80 text-[10px] text-gray-500 px-1.5 py-0.5 rounded z-[1000]">
-          Route via OSRM (road network)
+        <div className="absolute bottom-1 left-1 bg-white/80 text-[10px] text-gray-500 px-1.5 py-0.5 rounded z-[1000]" role="status">
+          {routeFailed ? 'Route unavailable' : 'Route via OSRM (road network)'}
         </div>
       )}
     </div>

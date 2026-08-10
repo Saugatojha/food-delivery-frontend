@@ -1,24 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api/client'
 import { ListSkeleton } from '../components/LoadingSkeleton'
 import EmptyState from '../components/EmptyState'
 import MapView from '../components/MapView'
+import { useToast } from '../context/ToastContext'
 
 const CUISINES = ['All', 'Italian', 'American', 'Japanese', 'Mexican', 'Indian', 'Chinese', 'Nepali']
 
 export default function Home() {
+  const { showToast } = useToast()
   const [restaurants, setRestaurants] = useState([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [search, setSearch] = useState('')
   const [cuisineFilter, setCuisineFilter] = useState('All')
   const [sort, setSort] = useState('')
   const [page, setPage] = useState(1)
 
-  useEffect(() => {
+  const loadRestaurants = useCallback(() => {
     setLoading(true)
+    setError(false)
     const params = { page, limit: 12 }
     if (search.trim()) params.search = search.trim()
     if (cuisineFilter !== 'All') params.cuisine = cuisineFilter
@@ -30,15 +34,22 @@ export default function Home() {
       setRestaurants(data.restaurants)
       setTotal(data.total)
       setTotalPages(data.totalPages)
-    }).catch(() => {}).finally(() => setLoading(false))
-  }, [search, cuisineFilter, sort, page])
+    }).catch(() => {
+      setError(true)
+      showToast('Could not load restaurants. Please try again.', 'error')
+    }).finally(() => setLoading(false))
+  }, [search, cuisineFilter, sort, page, showToast])
+
+  useEffect(() => {
+    loadRestaurants()
+  }, [loadRestaurants])
 
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6">
       <h1 className="text-2xl sm:text-3xl font-bold mb-1">Restaurants</h1>
       <p className="text-sm text-gray-500 mb-4" aria-label="Delivery location">Delivering to Kathmandu, Nepal</p>
 
-      {!loading && (
+      {!loading && !error && (
         <>
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
             <input
@@ -86,7 +97,22 @@ export default function Home() {
         </>
       )}
 
-      {loading ? (
+      {error ? (
+        <EmptyState
+          icon="⚠️"
+          title="Could not load restaurants"
+          message="Something went wrong while loading restaurants. Please try again."
+          action={
+            <button
+              onClick={loadRestaurants}
+              className="bg-orange-500 text-white px-4 py-2 rounded inline-block"
+              aria-label="Retry loading restaurants"
+            >
+              Retry
+            </button>
+          }
+        />
+      ) : loading ? (
         <ListSkeleton count={6} />
       ) : restaurants.length === 0 ? (
         <EmptyState icon="🍽️" title={search || cuisineFilter !== 'All' ? 'No matching restaurants' : 'No restaurants available'} message="Try a different search or filter" />

@@ -112,7 +112,7 @@ export default function Checkout() {
       showToast('Order placed successfully!', 'success')
       navigate('/orders')
     } catch {
-      showToast('Failed to place order', 'error')
+      showToast('Failed to place order. Check your details and try again.', 'error')
     } finally {
       setPlacing(false)
       setPaymentStep(-1)

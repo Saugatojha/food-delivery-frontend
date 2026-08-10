@@ -53,6 +53,31 @@ describe('MapView', () => {
     const polyline = await screen.findByTestId('polyline', {}, { timeout: 2000 })
     expect(polyline).toBeInTheDocument()
   })
+
+  it('shows the OSRM route note when a route loads', async () => {
+    const mockRoute = { routes: [{ geometry: { coordinates: [[77.59, 12.97], [77.60, 12.98]] } }] }
+    globalThis.fetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve(mockRoute) })
+    render(
+      <MapView
+        restaurant={{ latitude: 12.97, longitude: 77.59 }}
+        delivery={{ latitude: 12.98, longitude: 77.60 }}
+        showRouteNote
+      />
+    )
+    expect(await screen.findByText('Route via OSRM (road network)', {}, { timeout: 2000 })).toBeInTheDocument()
+  })
+
+  it('shows a Route unavailable note when the OSRM fetch fails', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network'))
+    render(
+      <MapView
+        restaurant={{ latitude: 12.97, longitude: 77.59 }}
+        delivery={{ latitude: 12.98, longitude: 77.60 }}
+        showRouteNote
+      />
+    )
+    expect(await screen.findByText('Route unavailable', {}, { timeout: 2000 })).toBeInTheDocument()
+  })
 })
 
 describe('restaurant coordinates', () => {
