@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { formatPrice, MOCK_RESTAURANTS } from '../data/mock'
 import { getAllOrders, STATUS_FLOWS } from '../services/orders'
@@ -7,6 +7,39 @@ import EmptyState from '../components/EmptyState'
 import { CardSkeleton } from '../components/LoadingSkeleton'
 
 const STEPS = STATUS_FLOWS.customer
+const POLL_MS = 15000
+
+function usePolling(fn, ms = POLL_MS) {
+  const fnRef = useRef(fn)
+  useEffect(() => {
+    fnRef.current = fn
+  })
+
+  useEffect(() => {
+    let id
+    const start = () => {
+      clearInterval(id)
+      id = setInterval(() => {
+        if (!document.hidden) fnRef.current()
+      }, ms)
+    }
+    const onVisibility = () => {
+      if (!document.hidden) {
+        fnRef.current()
+        start()
+      }
+    }
+    fnRef.current()
+    start()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', onVisibility)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', onVisibility)
+    }
+  }, [ms])
+}
 
 function simulateRiderLocation(order) {
   if (order.status === 'Out for Delivery' && order.restaurant?.latitude && order.deliveryLatitude) {
@@ -28,11 +61,18 @@ export default function OrderTracking() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    getAllOrders().then(data => {
+  const fetchOrders = useCallback(async () => {
+    try {
+      const data = await getAllOrders()
       setOrders(data)
-    }).catch(() => {}).finally(() => setLoading(false))
+    } catch {
+      // Polling failures are transient; keep last known orders on screen.
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  usePolling(fetchOrders, POLL_MS)
 
   if (loading) return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-3">
