@@ -42,7 +42,7 @@ app.use(express.json())
 
 if (process.env.NODE_ENV !== 'test') {
   app.use((req, res, next) => {
-    logger.info({ method: req.method, url: req.url, ip: req.ip })
+    logger.info(`${req.method} ${req.url}`, { ip: req.ip })
     next()
   })
 }
