@@ -14,9 +14,16 @@ const logger = require('../config/logger')
 
 const router = express.Router()
 
+const MAX_FAILED_ATTEMPTS = 5
+const LOCKOUT_MS = 15 * 60 * 1000
+
+function limitMax(prodMax) {
+  return process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test' ? prodMax : 100000
+}
+
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 20,
+  max: limitMax(20),
   message: { error: 'Too many attempts. Try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -24,36 +31,16 @@ const loginLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 10,
+  max: limitMax(10),
   message: { error: 'Too many attempts. Try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 })
 
-const accountLockout = new Map()
-setInterval(() => {
-  for (const [key, entry] of accountLockout) {
-    if (Date.now() - entry.start > 15 * 60 * 1000) accountLockout.delete(key)
-  }
-}, 60 * 1000)
-
-function checkLockout(req, res, next) {
-  const loginValue = req.body.login?.trim().toLowerCase()
-  if (!loginValue) return next()
-  const entry = accountLockout.get(loginValue)
-  if (entry && entry.count >= 5 && Date.now() - entry.start < 15 * 60 * 1000) {
-    logger.warn(`account locked: ${loginValue}`)
-    return unauthorized(res, 'Invalid email/username or password')
-  }
-  next()
-}
-
-function recordFailedAttempt(loginValue) {
-  if (!loginValue) return
-  const key = loginValue.trim().toLowerCase()
-  const entry = accountLockout.get(key) || { count: 0, start: Date.now() }
-  entry.count++
-  accountLockout.set(key, entry)
+function lockoutMinutesLeft(user) {
+  if (!user.lockedUntil) return 0
+  const msLeft = new Date(user.lockedUntil).getTime() - Date.now()
+  return msLeft > 0 ? Math.max(1, Math.ceil(msLeft / 60000)) : 0
 }
 
 function setJwtCookie(res, token) {
@@ -81,17 +68,23 @@ router.post('/register', registerLimiter, validate('name', 'email', 'password'),
     const verificationToken = crypto.randomBytes(32).toString('hex')
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashed,
-        role: 'customer',
-        emailVerified: false,
-        verificationToken,
-        verificationExpires,
-      },
-    })
+    let user
+    try {
+      user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          password: hashed,
+          role: 'customer',
+          emailVerified: false,
+          verificationToken,
+          verificationExpires,
+        },
+      })
+    } catch (err) {
+      if (err.code === 'P2002') return conflict(res, 'Email already registered')
+      throw err
+    }
 
     const emailResult = await sendVerificationEmail(user, verificationToken)
 
@@ -106,7 +99,7 @@ router.post('/register', registerLimiter, validate('name', 'email', 'password'),
   }
 })
 
-router.post('/login', loginLimiter, checkLockout, validate('login', 'password'), async (req, res) => {
+router.post('/login', loginLimiter, validate('login', 'password'), async (req, res) => {
   try {
     const loginValue = req.body.login.trim()
     const password = req.body.password
@@ -119,9 +112,24 @@ router.post('/login', loginLimiter, checkLockout, validate('login', 'password'),
 
     if (!user) return unauthorized(res, 'Invalid credentials')
 
+    const minutesLeft = lockoutMinutesLeft(user)
+    if (minutesLeft > 0) {
+      logger.warn(`account locked: ${identifier}`)
+      return res.status(423).json({
+        error: `Account temporarily locked due to too many failed attempts. Try again in ${minutesLeft} minute${minutesLeft > 1 ? 's' : ''}.`,
+        code: 'ACCOUNT_LOCKED',
+      })
+    }
+
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) {
-      recordFailedAttempt(loginValue)
+      const attempts = user.failedLoginAttempts + 1
+      const data = { failedLoginAttempts: attempts }
+      if (attempts >= MAX_FAILED_ATTEMPTS) {
+        data.failedLoginAttempts = 0
+        data.lockedUntil = new Date(Date.now() + LOCKOUT_MS)
+      }
+      await prisma.user.update({ where: { id: user.id }, data })
       return unauthorized(res, 'Invalid credentials')
     }
 
@@ -133,6 +141,7 @@ router.post('/login', loginLimiter, checkLockout, validate('login', 'password'),
       })
     }
 
+    await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } })
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
     setJwtCookie(res, token)
     setCsrfCookie(res, generateCsrfToken())

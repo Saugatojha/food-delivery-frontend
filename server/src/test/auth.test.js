@@ -1,10 +1,23 @@
 import request from 'supertest'
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import app from '../index'
+import prisma from '../config/database'
+
+const createdEmails = []
+
+beforeAll(async () => {
+  await prisma.user.updateMany({ where: { email: 'john@test.com' }, data: { failedLoginAttempts: 0, lockedUntil: null } })
+})
+
+afterAll(async () => {
+  await prisma.user.deleteMany({ where: { email: { in: createdEmails } } })
+  await prisma.user.updateMany({ where: { email: 'john@test.com' }, data: { failedLoginAttempts: 0, lockedUntil: null } })
+})
 
 describe('POST /api/auth/register', () => {
   const ts = Date.now()
   const newUser = { name: `Test User ${ts}`, email: `test${ts}@test.com`, password: 'Secret123!' }
+  createdEmails.push(newUser.email)
 
   it('registers a new user', async () => {
     const res = await request(app).post('/api/auth/register').send(newUser)
@@ -101,9 +114,10 @@ describe('GET /api/auth/verify-email', () => {
   const email = `verify${ts}@test.com`
   const password = 'StrongPass1!'
   let token
+  createdEmails.push(email)
 
   it('verifies an email via the dev link token, then allows login', async () => {
-    const reg = await request(app).post('/api/auth/register').send({ name: 'Verify Me', email, password })
+    const reg = await request(app).post('/api/auth/register').send({ name: `Verify ${ts}`, email, password })
     expect(reg.status).toBe(201)
     expect(reg.body.devLink).toMatch(/\/api\/auth\/verify-email\?token=/)
     token = new URL(reg.body.devLink).searchParams.get('token')
@@ -129,11 +143,50 @@ describe('GET /api/auth/verify-email', () => {
   })
 })
 
+describe('POST /api/auth/login — persistent account lockout (DB-backed)', () => {
+  const ts = Date.now()
+  const email = `lock${ts}@test.com`
+  const password = 'StrongPass1!'
+  createdEmails.push(email)
+
+  it('registers and verifies a fresh account for lockout testing', async () => {
+    const reg = await request(app).post('/api/auth/register').send({ name: `Lock Test ${ts}`, email, password })
+    expect(reg.status).toBe(201)
+    const token = new URL(reg.body.devLink).searchParams.get('token')
+    const verify = await request(app).get(`/api/auth/verify-email?token=${token}`)
+    expect(verify.status).toBe(200)
+  })
+
+  it('locks the account after 5 failed attempts', async () => {
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app).post('/api/auth/login').send({ login: email, password: 'WrongPass1!' })
+      expect(res.status).toBe(401)
+    }
+    const u = await prisma.user.findUnique({ where: { email } })
+    expect(u.failedLoginAttempts).toBe(0)
+    expect(u.lockedUntil).toBeTruthy()
+  })
+
+  it('rejects the correct password while locked (423)', async () => {
+    const res = await request(app).post('/api/auth/login').send({ login: email, password })
+    expect(res.status).toBe(423)
+    expect(res.body.code).toBe('ACCOUNT_LOCKED')
+  })
+
+  it('unlocks automatically once the lockout window passes', async () => {
+    await prisma.user.update({ where: { email }, data: { lockedUntil: new Date(Date.now() - 1000), failedLoginAttempts: 0 } })
+    const res = await request(app).post('/api/auth/login').send({ login: email, password })
+    expect(res.status).toBe(200)
+    expect(res.body.user.emailVerified).toBe(true)
+  })
+})
+
 describe('POST /api/auth/register — rate limiting', () => {
   let remaining
   it('starts returning 429 after limit exceeded', async () => {
     const payload = { name: 'ratelimit', email: 'ratelimit@test.com', password: 'StrongPass1!' }
     for (let i = 0; i < 12; i++) {
+      createdEmails.push(`ratelimit${i}@test.com`)
       const res = await request(app).post('/api/auth/register').send({ ...payload, name: `ratelimit${i}`, email: `ratelimit${i}@test.com` })
       if (res.status === 429) remaining = i
     }

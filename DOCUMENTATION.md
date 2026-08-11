@@ -450,7 +450,7 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 6. **Owner-restaurant linking** — Hardcoded via `ownerId`. Admin panel allows assigning owners when adding/editing restaurants.
 7. **Rider assignment** — The owner is auto-assigned as the delivery rider when an order is confirmed; there is no dispatch to third-party riders.
 8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
-9. **Test coverage** — 62 backend tests + 64 frontend tests + Playwright config (e2e/ directory).
+9. **Test coverage** — 66 backend tests + 64 frontend tests + Playwright config (e2e/ directory).
 
 ---
 
@@ -570,7 +570,7 @@ A user story is **Done** only when all of the following are true:
 
 ### Velocity & Quality
 
-- **Test suite:** 62 backend + 64 frontend = 126 automated tests, all green.
+- **Test suite:** 66 backend + 64 frontend = 130 automated tests, all green.
 - **Build:** production `vite build` passes.
 - **Working increment at end of every sprint** — demonstrable against the live dev servers.
 

@@ -15,7 +15,7 @@
 | [x] | No HTTPS enforcement (plain HTTP allowed). | Front-end uses whatever VITE_API_URL is set to. | Force HTTPS in production, add HSTS header. |
 | [x] | Weak/Static JWT secret (dev value). | server/src/config/env.js (not shown) | Use a strong 256-bit secret from a secret manager; rotate periodically. |
 | [x] | No input sanitisation for free-text fields (restaurant name, menu). | Various routes (routes/*.js) | Validate/escape strings (whitelist chars, length limits). |
-| [x] | No account lockout / password-reset throttling. | No password-reset flow. | Rate-limit reset requests; lock after repeated failures. |
+| [x] | No account lockout / password-reset throttling. | Done: 5 failed logins → 15-min lockout (`423 ACCOUNT_LOCKED`), **persisted in DB** (`User.failedLoginAttempts` / `lockedUntil`) so it survives restarts and is consistent across processes; counter resets on successful login. No password-reset flow yet. | Rate-limit reset requests when a reset flow is added. |
 | [x] | OpenStreetMap tile usage without attribution. | MapView.jsx | Add proper OSM attribution; consider a paid tile provider with API key. |
 
 ## 2️⃣ Functional / Reliability Improvements
@@ -33,7 +33,7 @@
 | [x] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
 | [x] | MySQL 8 with strong credentials — connection URL lives in `server/.env` (gitignored). | Done. | Rotate the default dev password before production. |
 | [x] | Hard-coded owner-restaurant linking (no UI). | Documentation. | Create admin UI to assign owners to restaurants; store relation in DB. |
-| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 126 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
+| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 130 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
 
 ## 3️⃣ Performance / Scalability Enhancements
 
@@ -69,3 +69,7 @@
 | [x] | CORS origin configurable via `CORS_ORIGIN` env (comma-separated). | `index.js` |
 | [x] | DB connectivity fixed for MySQL 8 `caching_sha2_password` over TCP (`allowPublicKeyRetrieval`). | `config/database.js` |
 | [x] | Frontend lint tech-debt resolved (inline `Eye` components hoisted; `set-state-in-effect` rule disabled due to async-fetch false positives). | `src/pages/Login.jsx`, `Register.jsx`, `eslint.config.js` |
+| [x] | Account lockout moved from in-memory `Map` to DB columns (`failedLoginAttempts`, `lockedUntil`) — survives server restarts and stays consistent across multiple processes; login returns `423 ACCOUNT_LOCKED` with remaining minutes, distinct from `401 Invalid credentials`. | `routes/auth.js`, `schema.prisma`, migration `20260811041456_add_account_lockout` |
+| [x] | Rate limiting made dev-aware: strict limits in production/test, effectively disabled in local dev to stop false `429 Too many attempts` during development. | `routes/auth.js`, `index.js` |
+| [x] | Register endpoint catches Prisma `P2002` unique violation and returns clean `409 Email already registered` instead of a generic 500 on a race. | `routes/auth.js` |
+| [x] | Auth test suite made hermetic: unique per-run names/emails, cleanup of created users in `afterAll`, lockout counters reset on `john@test.com` — tests now pass on repeated runs against a shared DB. | `test/auth.test.js` |

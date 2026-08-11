@@ -49,11 +49,18 @@ export default function Login() {
       const roleRoutes = { rider: '/rider', owner: '/owner', admin: '/admin' }
       navigate(roleRoutes[u.role] || '/')
     } catch (err) {
+      const status = err?.response?.status
       const code = err?.response?.data?.code
       const email = err?.response?.data?.email
       if (code === 'EMAIL_NOT_VERIFIED') {
         setUnverifiedEmail(email || form.login.trim())
         showToast('Please verify your email before logging in', 'error')
+      } else if (status === 423) {
+        setUnverifiedEmail('')
+        showToast(err?.response?.data?.error || 'Account locked. Try again later.', 'error')
+      } else if (status === 429) {
+        setUnverifiedEmail('')
+        showToast('Too many attempts. Try again later.', 'error')
       } else {
         setUnverifiedEmail('')
         showToast('Invalid email/username or password', 'error')

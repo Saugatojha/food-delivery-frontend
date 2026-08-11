@@ -25,7 +25,7 @@ app.use(helmet())
 if (process.env.NODE_ENV !== 'test') {
   const globalLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 100,
+    max: process.env.NODE_ENV === 'production' ? 100 : 100000,
     message: { error: 'Too many requests. Try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
