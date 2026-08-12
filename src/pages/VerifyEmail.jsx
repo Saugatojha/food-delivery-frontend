@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -14,10 +14,12 @@ export default function VerifyEmail() {
   const [message, setMessage] = useState('')
   const [devLink, setDevLink] = useState('')
   const [sending, setSending] = useState(false)
+  const verifiedRef = useRef(false)
 
   useEffect(() => {
-    if (!token) return
-    verifyEmail(token).then(data => {
+    if (!token || verifiedRef.current) return
+    verifiedRef.current = true
+    verifyEmail(token, email).then(data => {
       setStatus('success')
       setMessage(data.message || 'Email verified successfully')
       showToast('Email verified! You can now log in.', 'success')
@@ -82,10 +84,12 @@ export default function VerifyEmail() {
         {status === 'sent' && <p className="text-green-600 text-sm font-medium mt-3">{message}</p>}
 
         {devLink && (
-          <p className="mt-4 text-xs text-gray-500 bg-gray-50 border rounded p-2 break-all">
-            <span className="font-medium">Development link:</span>{" "}
-            <a href={devLink} className="text-orange-600 underline">{devLink}</a>
-          </p>
+          <a
+            href={devLink}
+            className="mt-4 block text-center text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded px-4 py-2"
+          >
+            Open verification link
+          </a>
         )}
 
         <div className="mt-5 text-sm">

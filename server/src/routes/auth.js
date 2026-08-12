@@ -112,6 +112,7 @@ router.post('/register', registerLimiter, validate('name', 'email', 'password'),
     res.status(201).json({
       message: 'Registration successful. Please verify your email to login.',
       user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: false },
+      verificationToken,
       ...(process.env.NODE_ENV !== 'production' && emailResult.devLink ? { devLink: emailResult.devLink } : {}),
     })
   } catch (err) {
@@ -176,9 +177,16 @@ router.post('/login', loginLimiter, validate('login', 'password'), async (req, r
 router.get('/verify-email', async (req, res) => {
   try {
     const token = req.query.token
+    const email = (req.query.email || '').trim().toLowerCase()
     if (!token) return badRequest(res, 'Verification token is required')
 
     const user = await prisma.user.findFirst({ where: { verificationToken: token } })
+    if (!user && email) {
+      const byEmail = await prisma.user.findUnique({ where: { email } })
+      if (byEmail?.emailVerified) {
+        return res.json({ message: 'Email already verified. You can now log in.' })
+      }
+    }
     if (!user) return badRequest(res, 'Invalid or expired verification token')
 
     if (user.verificationExpires && user.verificationExpires < new Date()) {

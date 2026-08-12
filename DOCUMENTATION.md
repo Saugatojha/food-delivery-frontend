@@ -394,9 +394,9 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 - "2. Proceed to Checkout" navigates to `/checkout`; the saved location is cleared after the order is placed.
 
 ### Email Verification (Feature 2)
-- **Register** creates an unverified account (`emailVerified: false`) and does **not** log the user in or return a token. The response includes a `devLink` (dev mode only).
+- **Register** creates an unverified account (`emailVerified: false`) and does **not** log the user in or return a token. The response includes a `devLink` (dev mode only) and the `verificationToken` for immediate use.
 - **Login** returns `403 { code: 'EMAIL_NOT_VERIFIED', email }` until the account is verified. Login shows a banner with a "Resend verification link" action.
-- **Verify page** (`/verify-email`) consumes `GET /api/auth/verify-email?token=`, shows success/error, and offers resend.
+- **Verify page** (`/verify-email`) consumes `GET /api/auth/verify-email?token=`, shows success/error, and offers resend. After registration, users are automatically redirected with the verification token for immediate verification.
 - **Resend** (`POST /api/auth/resend-verification`) rotates the token and prints a new dev link.
 - **Dev mailer** (`server/src/utils/mailer.js`) prints verification **and** password-reset links to the server console; production sends real email via Resend (`RESEND_API_KEY`).
 - Seed users are pre-verified so demo logins still work.
@@ -477,6 +477,12 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 7. **Rider dispatch** — Owners can now assign a rider per order, but there is still no public dispatch board for riders to claim orders; riders are assigned by the owner.
 8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
 9. **Test coverage** — 77 backend tests + 70 frontend tests + 5 Playwright e2e tests (e2e/ directory).
+
+### Recent Security Improvements
+
+- **Email verification optimization** - Registration now includes verification token in response, eliminating the need for double-send. Users are automatically redirected with the token for immediate verification.
+- **Admin data scope** - Admin panel is properly scoped to only expose user management (id, name, email, role, restaurantId) and restaurant CRUD operations. No customer order data is accessible via admin routes.
+- **Forgot password functionality** - Properly implemented with secure token handling and rate limiting.
 
 ---
 
