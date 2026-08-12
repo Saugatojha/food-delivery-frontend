@@ -93,6 +93,13 @@ server/ (port 5001)
 
 A `SECURITY_CHECKLIST.md` is maintained at the project root covering 4 areas (security, functional, performance, accessibility) with recommended fixes for each item.
 
+### Recent Security Improvements
+
+- Added server-side Helmet middleware with a restrictive Content Security Policy, X-Frame-Options, and HSTS headers in production.
+- Implemented double-submit CSRF protection on all state-changing `/api` requests, with a JavaScript-readable `csrf-token` cookie and `X-CSRF-Token` header enforcement.
+- Added global request sanitization for incoming JSON, query, and route parameters to strip control characters and dangerous markup.
+- Hardened CORS to explicit allowed origins, credentialed requests, explicit headers, and secure production cookie handling.
+
 ### Route Guards
 
 - **ProtectedRoute** — redirects to `/login` if no user in context. Saves intended path.

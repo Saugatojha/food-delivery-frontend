@@ -2,7 +2,7 @@ const { badRequest } = require('../utils/errors')
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const NAME_MAX_LENGTH = 100
-
+const MAX_INPUT_LENGTH = 2000
 const PASSWORD_RULES = {
   minLength: 8,
   requireUpper: true,
@@ -12,14 +12,38 @@ const PASSWORD_RULES = {
 }
 
 const PASSWORD_HINT = 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+const SENSITIVE_KEYS = new Set(['password', 'currentPassword', 'newPassword', 'confirmPassword'])
 
-function validatePassword(password) {
-  if (typeof password !== 'string' || password.length < PASSWORD_RULES.minLength) return false
-  if (PASSWORD_RULES.requireUpper && !/[A-Z]/.test(password)) return false
-  if (PASSWORD_RULES.requireLower && !/[a-z]/.test(password)) return false
-  if (PASSWORD_RULES.requireDigit && !/\d/.test(password)) return false
-  if (PASSWORD_RULES.requireSpecial && !/[^A-Za-z0-9]/.test(password)) return false
-  return true
+function sanitizeString(value) {
+  if (typeof value !== 'string') return value
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/[<>]/g, '')
+    .trim()
+    .slice(0, MAX_INPUT_LENGTH)
+}
+
+function sanitizeObject(value, key) {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeObject(item))
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value).reduce((acc, [childKey, childValue]) => {
+      acc[childKey] = sanitizeObject(childValue, childKey)
+      return acc
+    }, {})
+  }
+  if (typeof value === 'string') {
+    return SENSITIVE_KEYS.has(key) ? value : sanitizeString(value)
+  }
+  return value
+}
+
+function sanitizeRequest(req, res, next) {
+  if (req.body) req.body = sanitizeObject(req.body)
+  if (req.query) req.query = sanitizeObject(req.query)
+  if (req.params) req.params = sanitizeObject(req.params)
+  next()
 }
 
 function validate(...fields) {
@@ -36,6 +60,15 @@ function validate(...fields) {
     }
     next()
   }
+}
+
+function validatePassword(password) {
+  if (typeof password !== 'string' || password.length < PASSWORD_RULES.minLength) return false
+  if (PASSWORD_RULES.requireUpper && !/[A-Z]/.test(password)) return false
+  if (PASSWORD_RULES.requireLower && !/[a-z]/.test(password)) return false
+  if (PASSWORD_RULES.requireDigit && !/\d/.test(password)) return false
+  if (PASSWORD_RULES.requireSpecial && !/[^A-Za-z0-9]/.test(password)) return false
+  return true
 }
 
 function validatePasswordStrength(req, res, next) {
@@ -58,4 +91,11 @@ function validateOptional(...fields) {
   }
 }
 
-module.exports = { validate, validateOptional, validatePassword, validatePasswordStrength, PASSWORD_HINT }
+module.exports = {
+  sanitizeRequest,
+  validate,
+  validateOptional,
+  validatePassword,
+  validatePasswordStrength,
+  PASSWORD_HINT,
+}

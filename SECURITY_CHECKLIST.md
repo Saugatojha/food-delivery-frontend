@@ -9,9 +9,9 @@
 | [x] | Weak password policy – only presence validated. | middleware/validate.js | Enforce min 8 chars, include numbers/symbols, use zxcvbn strength estimator. |
 | [x] | No email verification – accounts activated instantly. | auth.js registration returns token directly | Done: one-time token emailed on register; login blocked until verified (403 EMAIL_NOT_VERIFIED); resend endpoint. |
 | [x] | Verbose error messages expose account existence. | auth.js returns "Invalid email or password", "User not found". | Return generic "Invalid credentials"; log details server-side. |
-| [x] | Missing CSRF protection (if switching to cookies). | None yet | When using cookies, add csurf or double-submit token. |
+| [x] | Missing CSRF protection (if switching to cookies). | server/src/middleware, server/src/routes/auth.js | Added double-submit CSRF guard with an `X-CSRF-Token` header and secure cookie check; safe GET requests now issue a CSRF token cookie. |
 | [x] | Permissive CORS (likely *). | Not inspected yet | Restrict origin to your domain(s); enable only required methods/headers. |
-| [x] | No security headers (Helmet, CSP). | None | Install helmet; configure CSP, X-Content-Type-Options, X-Frame-Options. |
+| [x] | No security headers (Helmet, CSP). | server/src/index.js | Added Helmet with explicit Content Security Policy and HSTS in production. |
 | [x] | No HTTPS enforcement (plain HTTP allowed). | Front-end uses whatever VITE_API_URL is set to. | Force HTTPS in production, add HSTS header. |
 | [x] | Weak/Static JWT secret (dev value). | server/src/config/env.js (not shown) | Use a strong 256-bit secret from a secret manager; rotate periodically. |
 | [x] | No input sanitisation for free-text fields (restaurant name, menu). | Various routes (routes/*.js) | Validate/escape strings (whitelist chars, length limits). |

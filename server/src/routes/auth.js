@@ -293,7 +293,8 @@ router.post('/reset-password', resetLimiter, validate('token', 'password'), vali
 })
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('jwt', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' })
+  res.clearCookie('jwt', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' })
+  res.clearCookie('csrf-token', { secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' })
   res.json({ message: 'Logged out' })
 })
 
