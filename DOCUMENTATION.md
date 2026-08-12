@@ -39,47 +39,51 @@ frontend/ (port 5173)
                     │         └─ NotificationProvider (in-app bell + browser push, polls unread-count)
                     │              └─ Navbar (hamburger menu, cart badge, notification bell, responsive)
                     │              └─ <Routes>
-                   │              ├─ /login -> Login
-                   │              ├─ /register -> Register
+                   │              ├─ /login -> Login (AuthShell)
+                   │              ├─ /register -> Register (AuthShell)
                    │              ├─ /verify-email?token=&email= -> VerifyEmail
+                   │              ├─ /forgot-password -> ForgotPassword (AuthShell)
+                   │              ├─ /reset-password?token=&email= -> ResetPassword
                    │              ├─ / -> ProtectedRoute -> Home (map + filters + sort)
                    │              ├─ /restaurant/:id -> ProtectedRoute -> Restaurant (map)
                    │              ├─ /cart -> RoleRoute(customer) -> Cart (location picker → checkout)
                    │              ├─ /checkout -> RoleRoute(customer) -> Checkout (+ map + phone)
                    │              ├─ /orders -> RoleRoute(customer) -> OrderTracking (+ map)
-                    │              ├─ /owner -> RoleRoute(owner) -> OwnerDashboard (Orders/Menu/Settings tabs)
-                    │              ├─ /rider -> RoleRoute(rider) -> RiderDashboard (Available/My Deliveries/Earnings tabs)
+                    │              ├─ /owner -> RoleRoute(owner|rider) -> OwnerDashboard (Orders/Menu/Settings tabs, rider assignment)
                     │              └─ /admin -> RoleRoute(admin) -> AdminPanel (restaurant CRUD only)
+
+Vite dev server proxies /api and /uploads to http://localhost:5001 (see vite.config.js).
 
 server/ (port 5001)
   src/
-    ├── index.js                 Express app entry
+    ├── index.js                 Express app entry (CORS, JSON, legacy-URL rewrite, EADDRINUSE guard)
     ├── config/
-    │   ├── env.js               PORT, JWT_SECRET, JWT_EXPIRES_IN
+    │   ├── env.js               PORT, JWT_SECRET, JWT_EXPIRES_IN, FRONTEND_URL
     │   └── database.js          PrismaClient singleton with MySQL (mariadb) driver adapter;
     │                            allowPublicKeyRetrieval set for MySQL 8 caching_sha2_password over TCP
     ├── middleware/
     │   ├── auth.js              authenticate (JWT verify) + authorize (role check)
     │   └── validate.js          validate() / validateOptional() field checkers
     ├── routes/
-    │   ├── auth.js              POST /register (email normalized, unverified), POST /login (403 EMAIL_NOT_VERIFIED until verified), GET /verify-email, POST /resend-verification, GET /me
+    │   ├── auth.js              POST /register (email normalized, unverified), POST /login (403 EMAIL_NOT_VERIFIED until verified), GET /verify-email, POST /resend-verification, POST /forgot-password, POST /reset-password, GET /me
     │   ├── restaurants.js       GET /, GET /:id/menu
     │   ├── orders.js            POST / (accepts phone), GET /, GET /tracking/:id, PATCH /:id/status (role-scoped)
     │   ├── cart.js              GET /, POST /sync, POST /add, DELETE /:id (authenticated, validates items)
     │   ├── notifications.js     GET /, GET /unread-count, PATCH /:id/read, POST /read-all
-    │   ├── upload.js            POST /image (multer → /uploads)
-    │   ├── owner.js             GET/POST/PATCH/DELETE /menu (+ image), GET /orders, PATCH /orders/:id/status
+    │   ├── upload.js            POST /image (multer → /uploads, returns relative URL)
+    │   ├── owner.js             GET/POST/PATCH/DELETE /menu (+ image), GET /orders, GET /riders, PATCH /orders/:id/status (needs riderId), PATCH /orders/:id/rider
     │   ├── rider.js             GET /deliveries, GET /my-deliveries, GET /earnings,
     │   │                        PATCH /orders/:id/accept, PATCH /orders/:id/reject,
     │   │                        PATCH /orders/:id/status, PATCH /location
     │   └── admin.js             GET /users, GET /restaurants, POST/PATCH/DELETE /restaurants
     └── utils/
         ├── statusFlow.js        Role-based status transition validation
-        ├── mailer.js            sendVerificationEmail (dev: prints link to console)
+        ├── mailer.js            sendVerificationEmail + sendPasswordResetEmail (dev: print links to console)
         ├── notify.js            createNotification, notifyRestaurantOwner, notifyCustomer
+        ├── urls.js              legacyUrlRewriteMiddleware rewrites stale localhost:5000 URLs to APP_URL
         └── errors.js            Consistent error response helpers
   prisma/
-    ├── schema.prisma            10 models (MenuItem category + image, User email verification, Notification)
+    ├── schema.prisma            11 models (MenuItem category + image, User email verification, PasswordResetToken, Notification)
     ├── seed.js                  Seeds 4 users (emailVerified: true), 7 restaurants (including Nepali), 26 menu items with categories
     ├── reset.js                 Refuses if server port 5001 in use, then prisma migrate reset --force (drop, migrate, re-seed)
     └── migrations/              MySQL migration files
@@ -97,7 +101,7 @@ A `SECURITY_CHECKLIST.md` is maintained at the project root covering 4 areas (se
 ### Post-Login Redirect
 
 After successful login, users are redirected by role:
-- **Rider** → `/rider` (delivery dashboard)
+- **Rider** → `/owner` (shared owner/orders dashboard with rider assignment)
 - **Owner** → `/owner` (restaurant dashboard)
 - **Admin** → `/admin` (restaurant management)
 - **Customer** → `/` (Home page with restaurant listing)
@@ -109,17 +113,18 @@ After successful login, users are redirected by role:
 ```
 src/
 ├── api/
-│   └── client.js                Axios -> VITE_API_URL (default localhost:5001/api). 401 clears auth + redirects.
+│   └── client.js                Axios -> '/api' (Vite dev proxy → localhost:5001). 10s timeout. 401 clears auth + redirects to /login except on public paths (/login, /register, /forgot-password, /reset-password, /verify-email).
 ├── context/
-│   ├── AuthContext.jsx           User state, login/register/logout/verifyEmail/resendVerification via real API. Emails trimmed + lowercased.
+│   ├── AuthContext.jsx           User state, login/register/logout/verifyEmail/resendVerification/forgotPassword/resetPassword via real API. Emails trimmed + lowercased.
 │   ├── ToastContext.jsx          Toast notification system. Auto-dismiss after 3s, manual dismiss button, max 3 visible toasts.
 │   └── NotificationContext.jsx   Polls /notifications/unread-count (15s), bell badge, Notification API browser push.
 ├── utils/
 │   ├── storage.js                Safe readJson/writeJson/removeKeys.
 │   └── leafletIcon.js            Fixes Leaflet default marker icon for Vite.
 ├── services/
-│   └── orders.js                 Async API calls + cart (localStorage with cart-update event) + delivery-location storage + status flow constants.
+│   └── orders.js                 Async API calls + cart (localStorage with cart-update event) + delivery-location storage + status flow constants. updateOwnerOrderStatus accepts optional riderId.
 ├── components/
+│   ├── AuthShell.jsx             Branded two-column layout wrapping Login / Register / ForgotPassword.
 │   ├── EmptyState.jsx            Reusable: icon + title + message + optional action.
 │   ├── ErrorBoundary.jsx         Catches render errors, shows reload button.
 │   ├── ImageUpload.jsx           Reusable image picker → POST /api/upload/image → returns URL.
@@ -131,24 +136,26 @@ src/
 ├── data/
 │   └── mock.js                   Backup mock data with Kathmandu coordinates.
 ├── pages/
-│   ├── Login.jsx                 Email/password with inline validation + toast on error. Redirects by role after login. Shows "verify email" banner on EMAIL_NOT_VERIFIED.
+│   ├── Login.jsx                 Email/username + password with inline validation + toast on error. Redirects by role after login. Shows "verify email" banner on EMAIL_NOT_VERIFIED.
 │   ├── Register.jsx              Name (first/middle/last) + email/password with inline validation. On success → /verify-email.
 │   ├── VerifyEmail.jsx           Consumes GET /auth/verify-email?token=, resend link UI.
+│   ├── ForgotPassword.jsx        Email/username form → POST /auth/forgot-password; shows generic success + devLink (dev only).
+│   ├── ResetPassword.jsx         Reads ?token=, new password + confirm with strength check → POST /auth/reset-password; invalid/missing token shows an inline warning.
 │   ├── Home.jsx                  Map showing all 7 restaurants + search by name/cuisine + cuisine filter chips (incl. Nepali) + sort.
 │   ├── Restaurant.jsx            Map showing restaurant location + menu items (with images) from API.
 │   ├── Cart.jsx                  Cart items with qty +/-/remove + total + empty state + delivery-location map picker → proceeds to checkout.
 │   ├── Checkout.jsx              Phone + address + map picker (prefilled from cart location) + inline validation. Sends delivery coords to API.
 │   ├── OrderTracking.jsx         5-step progress bar + map + real rider coords marker (when provided) + phone display; polls every 15s, paused when the tab is hidden, refetches on focus.
 │   ├── owner/
-│   │   └── Dashboard.jsx         3-tab: Orders (accept/decline with confirm modal + audio), Menu (category-grouped + add/edit), Settings.
+│   │   └── Dashboard.jsx         3-tab: Orders (accept with rider-select modal + decline + assign-rider dropdown, audio), Menu (category-grouped + add/edit), Settings.
 │   ├── rider/
 │   │   └── Dashboard.jsx         3-tab: Available (accept/pass, mini map), My Deliveries (status advance, live map), Earnings (daily/weekly/all-time).
 │   └── admin/
 │       └── Panel.jsx             Restaurant CRUD only.
-├── App.jsx                       Route definitions.
+├── App.jsx                       Route definitions (login, register, verify-email, forgot-password, reset-password + protected routes).
 ├── main.jsx                      ReactDOM.createRoot + BrowserRouter + Leaflet CSS.
 ├── e2e/
-│   └── login.spec.js             Playwright: customer login flow + wrong-password error.
+│   └── login.spec.js             Playwright: 5 tests — login flow, wrong-password error, server-unreachable message, forgot-password reachability, reset-password invalid-link.
 ├── playwright.config.js          Playwright config (baseURL localhost:5173, headless).
 └── index.css                     @import "tailwindcss", Inter font, brand CSS vars, hover-lift animation
 ```
@@ -160,36 +167,37 @@ src/
 ```
 server/
 ├── src/
-│   ├── index.js                  Express app, CORS, JSON parsing, mounts all routes.
+│   ├── index.js                  Express app, CORS, JSON parsing, legacy-URL rewrite middleware, mounts all routes. Logs a clear error and exits if port 5001 is already in use.
 │   ├── config/
-│   │   ├── env.js                Reads PORT, JWT_SECRET, JWT_EXPIRES_IN from env.
+│   │   ├── env.js                Reads PORT, JWT_SECRET, JWT_EXPIRES_IN, FRONTEND_URL from env.
 │   │   └── database.js           PrismaClient with MySQL (mariadb) driver adapter (allowPublicKeyRetrieval for MySQL 8).
 │   ├── middleware/
 │   │   ├── auth.js               authenticate (JWT verify via Authorization header) + authorize (role check).
 │   │   └── validate.js           validate() / validateOptional() field checkers.
 │   ├── routes/
-│   │   ├── auth.js               POST /api/auth/register, POST /api/auth/login, GET /api/auth/verify-email?token=, POST /api/auth/resend-verification, GET /api/auth/me
+│   │   ├── auth.js               POST /api/auth/register, POST /api/auth/login, GET /api/auth/verify-email?token=, POST /api/auth/resend-verification, POST /api/auth/forgot-password, POST /api/auth/reset-password, GET /api/auth/me
 │   │   ├── restaurants.js        GET /api/restaurants, GET /api/restaurants/:id/menu
 │   │   ├── orders.js             POST /api/orders (accepts phone), GET /api/orders, GET /api/orders/tracking/:id, PATCH /api/orders/:id/status
 │   │   │                         PATCH status is restricted to owner/rider/admin and verified against restaurant ownership (owner) or the assigned rider
 │   │   ├── cart.js               GET /api/cart, POST /api/cart/sync, POST /api/cart/add, DELETE /api/cart/:id
 │   │   ├── notifications.js      GET /api/notifications, GET /api/notifications/unread-count, PATCH /api/notifications/:id/read, POST /api/notifications/read-all
-│   │   ├── upload.js             POST /api/upload/image (multipart, max 5MB, jpeg/png/gif/webp) → { url }
-│   │   ├── owner.js              GET /api/owner/restaurant, PATCH /api/owner/restaurant, GET /api/owner/orders, /api/owner/orders/:id/status, /api/owner/menu CRUD (+ image)
+│   │   ├── upload.js             POST /api/upload/image (multipart, max 5MB, jpeg/png/gif/webp) → { url: '/uploads/...' }
+│   │   ├── owner.js              GET /api/owner/restaurant, PATCH /api/owner/restaurant, GET /api/owner/orders, GET /api/owner/riders, PATCH /api/owner/orders/:id/status (needs riderId to Confirm), PATCH /api/owner/orders/:id/rider, /api/owner/menu CRUD (+ image)
 │   │   ├── rider.js              GET /api/rider/deliveries, GET /api/rider/my-deliveries, GET /api/rider/earnings, PATCH /api/rider/orders/:id/(accept|reject|status), PATCH /api/rider/location
 │   │   └── admin.js              GET /api/admin/users, GET/POST/PATCH/DELETE /api/admin/restaurants
 │   └── utils/
 │       ├── statusFlow.js         FLOWS per role, getNextStatus, isValidTransition, TERMINAL_STATUSES
-│       ├── mailer.js             sendVerificationEmail — prints dev link, no-op in production
+│       ├── mailer.js             sendVerificationEmail + sendPasswordResetEmail — print dev links, send via Resend in production
 │       ├── notify.js             createNotification + notifyRestaurantOwner + notifyCustomer
+│       ├── urls.js               rewriteLegacyUrls + legacyUrlRewriteMiddleware (rewrites stale localhost:5000 URLs in JSON responses)
 │       └── errors.js             error, badRequest, unauthorized, forbidden, notFound, conflict, serverError
 ├── prisma/
-│   ├── schema.prisma             10 models (User emailVerified/verificationToken, MenuItem.image, Notification)
+│   ├── schema.prisma             11 models (User emailVerified/verificationToken, MenuItem.image, PasswordResetToken, Notification)
 │   ├── seed.js                   Seeds demo data (Kathmandu coords, emailVerified users)
-│   ├── reset.js                  Port-5000 guard, then prisma migrate reset --force (drop, migrate, re-seed)
+│   ├── reset.js                  Port-5001 guard, then prisma migrate reset --force (drop, migrate, re-seed)
 │   └── migrations/               Auto-generated by prisma migrate
 ├── prisma.config.ts              Prisma 7 config
-├── .env                          DATABASE_URL, JWT_SECRET, PORT=5001
+├── .env                          DATABASE_URL, JWT_SECRET, PORT=5001, CORS_ORIGIN, APP_URL, FRONTEND_URL
 └── package.json
 ```
 
@@ -197,7 +205,7 @@ server/
 
 ## Prisma Schema
 
-10 models: User, Restaurant, MenuItem, Order, OrderItem, Payment, Delivery, Rating, Notification.
+11 models: User, Restaurant, MenuItem, Order, OrderItem, Payment, Delivery, Rating, Notification, PasswordResetToken.
 
 Key coordinate fields (for map feature):
 - `Restaurant.latitude` / `Restaurant.longitude`
@@ -209,6 +217,9 @@ Key contact field:
 
 Email verification fields:
 - `User.emailVerified` / `User.verificationToken` / `User.verificationExpires`
+
+Password reset fields:
+- `PasswordResetToken.token` (SHA-256 hash, unique) / `userId` / `expiresAt` (30 min) / `usedAt` (single-use) / `createdAt`
 
 Notification fields:
 - `Notification.userId` / `title` / `message` / `type` / `orderId` / `read` / `createdAt`
@@ -254,7 +265,7 @@ Roles progress through these statuses (one step at a time):
 
 Terminal statuses (cannot transition out): Delivered, Cancelled, Rejected.
 
-> **Owner/rider merge:** when an owner confirms an order (`Pending → Confirmed`), a `Delivery` row is auto-created with `riderId = owner`, so the owner acts as the delivery rider for their own orders. A rider (or the owning rider) may only advance an order they are assigned to.
+> **Owner/rider merge:** owners work in a shared `/owner` dashboard. When an owner confirms an order (`Pending → Confirmed`), they **must pick a rider** (`riderId` in the request body) — the `Delivery` row is created with that rider assigned. Riders can also be (re)assigned later via `PATCH /api/owner/orders/:id/rider`. A rider (or the owning rider) may only advance an order they are assigned to.
 
 ---
 
@@ -270,6 +281,8 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 | POST | `/api/auth/login` | `{ login, password }` | `{ token, user }` or `403 { code: 'EMAIL_NOT_VERIFIED', email }` |
 | GET | `/api/auth/verify-email?token=` | — | `{ message }` (marks email verified) |
 | POST | `/api/auth/resend-verification` | `{ login }` | `{ message, devLink? }` |
+| POST | `/api/auth/forgot-password` | `{ login }` | `{ message, devLink? }` (generic message — no email enumeration) |
+| POST | `/api/auth/reset-password` | `{ token, password }` | `{ message }` (single-use, 30-min expiry, resets lockout) |
 | GET | `/api/auth/me` | — | `{ user }` |
 
 Emails are normalized (trimmed + lowercased) on register and login. New users must verify their email before the first login. In dev (`NODE_ENV !== 'production'`), `mailer.js` prints the verification URL to the server console instead of sending real email; the frontend also surfaces it as a `devLink`.
@@ -318,7 +331,7 @@ Notifications are created for: new order (owner), order Confirmed/Rejected (cust
 |---|---|---|---|
 | POST | `/api/upload/image` | multipart `image` (max 5MB, jpeg/png/gif/webp) | `{ url }` |
 
-Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The returned URL is absolute (uses `APP_URL` or request host).
+Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The returned URL is relative (`/uploads/<file>`); the Vite dev proxy forwards `/uploads` to the backend.
 
 ### Owner
 
@@ -327,7 +340,9 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 | GET | `/api/owner/restaurant` | — | `Restaurant` |
 | PATCH | `/api/owner/restaurant` | restaurant fields | `Restaurant` |
 | GET | `/api/owner/orders` | — | `[ Order ]` |
-| PATCH | `/api/owner/orders/:id/status` | `{ status }` | `Order` |
+| PATCH | `/api/owner/orders/:id/status` | `{ status, riderId? }` | `Order` — `riderId` is **required** to confirm (`Pending → Confirmed`) |
+| PATCH | `/api/owner/orders/:id/rider` | `{ riderId }` | `Order` — (re)assign a rider to a non-terminal order |
+| GET | `/api/owner/riders` | — | `[ { id, name, email } ]` — rider accounts for assignment |
 | GET | `/api/owner/menu` | — | `[ MenuItem ]` |
 | POST | `/api/owner/menu` | `{ name, price, category?, desc?, image? }` | `MenuItem` |
 | PATCH | `/api/owner/menu/:id` | `{ name?, price?, category?, desc?, image? }` | `MenuItem` |
@@ -383,7 +398,7 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 - **Login** returns `403 { code: 'EMAIL_NOT_VERIFIED', email }` until the account is verified. Login shows a banner with a "Resend verification link" action.
 - **Verify page** (`/verify-email`) consumes `GET /api/auth/verify-email?token=`, shows success/error, and offers resend.
 - **Resend** (`POST /api/auth/resend-verification`) rotates the token and prints a new dev link.
-- **Dev mailer** (`server/src/utils/mailer.js`) prints `http://localhost:5001/api/auth/verify-email?token=...` to the server console; production is a no-op placeholder.
+- **Dev mailer** (`server/src/utils/mailer.js`) prints verification **and** password-reset links to the server console; production sends real email via Resend (`RESEND_API_KEY`).
 - Seed users are pre-verified so demo logins still work.
 
 ### Notifications (Feature 3)
@@ -391,8 +406,19 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 - **Browser push** — on an unread-count increase, the frontend requests the `Notification` permission once and shows a browser notification (title + message). Works while the tab is open.
 - **Events**: owner receives "New order received" on order create; customer receives notifications when an order is **Confirmed**, **Rejected**, **Out for Delivery**, and **Delivered**.
 
+### Password Reset (Feature 5)
+- **Forgot Password page** (`/forgot-password`, wrapped in `AuthShell`) — email-or-username form → `POST /api/auth/forgot-password`. Always shows the same generic success message ("If an account exists...") so the endpoint does not leak which emails are registered.
+- **Reset Password page** (`/reset-password?token=&email=`) — new password + confirm with the same strength rules as Register → `POST /api/auth/reset-password`. A missing/invalid token shows an inline warning with a "Request a new reset link" action.
+- **Backend** — reset tokens are single-use, SHA-256 hashed at rest, expire after 30 minutes, and a successful reset clears the account lockout (`failedLoginAttempts`/`lockedUntil`). Rate-limited (5/10 min) like registration.
+- **Dev mailer** prints the reset link (`FRONTEND_URL` + `/reset-password?token=...`) to the server console; production sends real email via Resend.
+
+### Rider Dispatch (Feature 6)
+- **Owner dashboard** fetches `GET /api/owner/riders` and shows a rider dropdown per order; the accept modal requires selecting a rider before confirming an order.
+- **Assign later** — a per-order "Assign rider" dropdown calls `PATCH /api/owner/orders/:id/rider`, so riders can be (re)assigned after an order is placed (not on terminal orders).
+- **Backend** — `PATCH /api/owner/orders/:id/status` now returns `400` if `riderId` is missing for `Pending → Confirmed`; it no longer auto-assigns the owner as rider.
+
 ### Image Uploads (Feature 4)
-- **Upload API** — `POST /api/upload/image` (multer, 5MB max, jpeg/png/gif/webp) stores files in `server/uploads/` and returns an absolute URL.
+- **Upload API** — `POST /api/upload/image` (multer, 5MB max, jpeg/png/gif/webp) stores files in `server/uploads/` and returns a relative URL (`/uploads/<file>`).
 - **ImageUpload component** (`src/components/ImageUpload.jsx`) — reusable file picker with preview, used in:
   - Owner **Settings** tab (restaurant image).
   - Owner **Menu** add/edit forms (per-item images, both Dashboard tab and `/owner/menu` page).
@@ -446,11 +472,11 @@ When a restaurant owner edits their menu, the available categories auto-filter b
 2. **Cart is localStorage** — Cart persists locally; a backend `/api/cart` API exists (validated `sync`/`add`) but is not yet wired into the frontend, so carts don't sync across devices.
 3. **No real payment** — Payment is mocked. No Stripe/PayPal integration.
 4. **No pagination** — All data loads at once.
-5. **Email verification is dev-only** — `mailer.js` prints verification links to the server console instead of sending real email; wire up an SMTP provider for production.
+5. **Email is dev-only** — `mailer.js` prints verification + password-reset links to the server console instead of sending real email; production requires a `RESEND_API_KEY`.
 6. **Owner-restaurant linking** — Hardcoded via `ownerId`. Admin panel allows assigning owners when adding/editing restaurants.
-7. **Rider assignment** — The owner is auto-assigned as the delivery rider when an order is confirmed; there is no dispatch to third-party riders.
+7. **Rider dispatch** — Owners can now assign a rider per order, but there is still no public dispatch board for riders to claim orders; riders are assigned by the owner.
 8. **Accessibility** — Partial `aria-label` coverage; not fully WCAG-compliant.
-9. **Test coverage** — 66 backend tests + 64 frontend tests + Playwright config (e2e/ directory).
+9. **Test coverage** — 77 backend tests + 70 frontend tests + 5 Playwright e2e tests (e2e/ directory).
 
 ---
 
@@ -472,7 +498,7 @@ npm install
 npx prisma migrate dev   # apply migrations (MySQL schema)
 npm run seed             # Re-run seed data (4 users, 7 restaurants, 26 menu items)
 npm run dev              # Dev server with nodemon on port 5001
-npm run test             # Vitest (62 tests)
+npm run test             # Vitest (77 tests)
 npm run reset            # Refuses if port 5001 in use, then prisma migrate reset --force (drop DB, re-migrate, re-seed)
 npm run migrate          # Run prisma migrate dev
 ```
@@ -484,7 +510,7 @@ npm run dev          # Vite dev server with HMR on port 5173
 npm run build        # Production build -> dist/
 npm run preview      # Preview production build
 npm run lint         # ESLint check
-npm run test         # Vitest (64 tests)
+npm run test         # Vitest (70 tests)
 npm run test:e2e     # Playwright E2E tests (requires both servers running)
 ```
 
@@ -504,7 +530,7 @@ cd server && npx vitest run && cd .. && npm run test
 npx playwright test
 ```
 
-The frontend Axios client defaults to `http://localhost:5001/api`. Set `VITE_API_URL` in `.env` to override.
+The frontend Axios client uses a relative base URL (`/api`); in development the Vite server proxies `/api` and `/uploads` to `http://localhost:5001` (see `vite.config.js`). Set `VITE_API_URL` in `.env` to override the base URL in production builds.
 
 ---
 
@@ -554,6 +580,8 @@ A user story is **Done** only when all of the following are true:
 | US-06 | As a customer, I want a 3-step checkout wizard with live validation | Medium | 🆕 Backlog |
 | US-07 | As a user, I want dark mode and reduced-motion support | Medium | 🆕 Backlog |
 | US-08 | As an owner, I want to manage restaurant linking to my account | Low | 🆕 Backlog |
+| US-09 | As a user who forgot my password, I want to reset it via email so that I can get back into my account | High | ✅ Done (Sprint 9) |
+| US-10 | As an owner, I want to assign a specific rider to each order so that deliveries are dispatched | High | ✅ Done (Sprint 9) |
 
 ### Sprint History
 
@@ -567,10 +595,11 @@ A user story is **Done** only when all of the following are true:
 | 6 | Engagement (current) | **Delivery location → checkout (US-01), email verification (US-02), in-app + browser notifications (US-03), image uploads (US-04)** |
 | 7 | Polish (planned) | Tracking polling, checkout wizard, dark mode, performance/lazy routes |
 | 8 | Hardening (bug fixes) | Visibility-aware order tracking polling, real rider coords (no simulated rider), error surfacing (Home retry, Checkout toast, OSRM route note), debounced restaurant search, dismissible + capped toasts |
+| 9 | Auth + dispatch (done) | Password reset via email (forgot-password/reset-password, single-use hashed 30-min tokens), owner-driven rider dispatch (rider list + per-order assignment), Vite proxy to backend, relative upload URLs, 401 redirect guard, EADDRINUSE guard |
 
 ### Velocity & Quality
 
-- **Test suite:** 66 backend + 64 frontend = 130 automated tests, all green.
+- **Test suite:** 77 backend + 70 frontend + 5 e2e = 152 automated tests, all green.
 - **Build:** production `vite build` passes.
 - **Working increment at end of every sprint** — demonstrable against the live dev servers.
 
@@ -604,18 +633,19 @@ App
          └─ NotificationProvider
             ├─ Navbar                      (bell + dropdown reads NotificationContext)
             └─ Routes
-               ├─ /login            → Login
-               ├─ /register         → Register
+               ├─ /login            → Login (AuthShell)
+               ├─ /register         → Register (AuthShell)
                ├─ /verify-email     → VerifyEmail
+               ├─ /forgot-password  → ForgotPassword (AuthShell)
+               ├─ /reset-password   → ResetPassword
                ├─ /                 → ProtectedRoute → Home
                ├─ /restaurant/:id   → ProtectedRoute → Restaurant
                ├─ /cart             → RoleRoute(customer) → Cart → MapView
                ├─ /checkout         → RoleRoute(customer) → Checkout → MapView
                ├─ /orders           → RoleRoute(customer) → OrderTracking
-               ├─ /owner            → RoleRoute(owner)  → owner/Dashboard → ImageUpload, CardSkeleton
-               ├─ /owner/menu       → RoleRoute(owner)  → owner/MenuManagement → ImageUpload
-               ├─ /owner/orders     → RoleRoute(owner)  → owner/Orders
-               ├─ /rider            → RoleRoute(rider)  → rider/Dashboard
+               ├─ /owner            → RoleRoute(owner|rider)  → owner/Dashboard → ImageUpload, CardSkeleton
+               ├─ /owner/menu       → RoleRoute(owner|rider)  → owner/MenuManagement → ImageUpload
+               ├─ /owner/orders     → RoleRoute(owner|rider)  → owner/Orders
                └─ /admin            → RoleRoute(admin)  → admin/Panel
 ```
 
@@ -623,6 +653,6 @@ App
 
 1. **`Register.jsx`** — form + validation + password strength meter; on success calls `register()`, then `navigate('/verify-email?email=...')` (no auto-login).
 2. **`VerifyEmail.jsx`** — reads `?token`, calls `AuthContext.verifyEmail(token)`, redirects to `/login`.
-3. **`Login.jsx`** — calls `AuthContext.login()`; on success routes by role: `roleRoutes = { rider: '/rider', owner: '/owner', admin: '/admin' }` → `navigate(roleRoutes[u.role] || '/')` (customers land on Home).
+3. **`Login.jsx`** — calls `AuthContext.login()`; on success routes by role: `roleRoutes = { rider: '/owner', owner: '/owner', admin: '/admin' }` → `navigate(roleRoutes[u.role] || '/')` (customers land on Home).
 4. **Route guard `RoleRoute`** — reads `AuthContext.user`; unauthenticated → `/login`, wrong role → `/`. Passes through when role matches.
 5. **Dashboard pages** — compose reusable components + context: e.g. `owner/Dashboard` uses `ImageUpload` (restaurant image), `CardSkeleton` (loading), `ToastContext` (feedback), `AuthContext` (identity); `Navbar` renders the notification bell backed by `NotificationContext`.

@@ -1,4 +1,4 @@
-const express = require('express')
+﻿const express = require('express')
 const prisma = require('../config/database')
 const { authenticate } = require('../middleware/auth')
 const { isValidTransition, TERMINAL_STATUSES } = require('../utils/statusFlow')
@@ -39,7 +39,6 @@ router.post('/', authenticate, validate('address'), async (req, res) => {
         deliveryLongitude: deliveryLongitude || null,
         items: { create: orderItems },
         payment: { create: { method: paymentMethod || 'cash', status: 'completed' } },
-        delivery: { create: { address, status: 'assigned' } },
       },
       include: { items: true, payment: true, delivery: true },
     })
@@ -49,7 +48,7 @@ router.post('/', authenticate, validate('address'), async (req, res) => {
     notifyRestaurantOwner(
       order,
       'New order received',
-      `New order #${order.id} for NPR ${order.total.toFixed(2)} — check your dashboard.`,
+      `New order #${order.id} for NPR ${order.total.toFixed(2)} â€” check your dashboard.`,
       'order',
     )
   } catch (err) {
@@ -135,3 +134,5 @@ router.patch('/:id/status', authenticate, validate('status'), async (req, res) =
 })
 
 module.exports = router
+
+

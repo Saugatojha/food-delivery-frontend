@@ -15,7 +15,7 @@
 | [x] | No HTTPS enforcement (plain HTTP allowed). | Front-end uses whatever VITE_API_URL is set to. | Force HTTPS in production, add HSTS header. |
 | [x] | Weak/Static JWT secret (dev value). | server/src/config/env.js (not shown) | Use a strong 256-bit secret from a secret manager; rotate periodically. |
 | [x] | No input sanitisation for free-text fields (restaurant name, menu). | Various routes (routes/*.js) | Validate/escape strings (whitelist chars, length limits). |
-| [x] | No account lockout / password-reset throttling. | Done: 5 failed logins → 15-min lockout (`423 ACCOUNT_LOCKED`), **persisted in DB** (`User.failedLoginAttempts` / `lockedUntil`) so it survives restarts and is consistent across processes; counter resets on successful login. No password-reset flow yet. | Rate-limit reset requests when a reset flow is added. |
+| [x] | No account lockout / password-reset throttling. | Done: 5 failed logins → 15-min lockout (`423 ACCOUNT_LOCKED`), **persisted in DB** (`User.failedLoginAttempts` / `lockedUntil`) so it survives restarts and is consistent across processes; counter resets on successful login. Password reset is rate-limited (5 req/10 min), uses single-use SHA-256-hashed 30-min tokens, returns a generic message (no account enumeration), and clears the lockout on success. | — |
 | [x] | OpenStreetMap tile usage without attribution. | MapView.jsx | Add proper OSM attribution; consider a paid tile provider with API key. |
 
 ## 2️⃣ Functional / Reliability Improvements
@@ -33,7 +33,7 @@
 | [x] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
 | [x] | MySQL 8 with strong credentials — connection URL lives in `server/.env` (gitignored). | Done. | Rotate the default dev password before production. |
 | [x] | Hard-coded owner-restaurant linking (no UI). | Documentation. | Create admin UI to assign owners to restaurants; store relation in DB. |
-| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 130 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
+| [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 152 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
 
 ## 3️⃣ Performance / Scalability Enhancements
 
@@ -73,3 +73,6 @@
 | [x] | Rate limiting made dev-aware: strict limits in production/test, effectively disabled in local dev to stop false `429 Too many attempts` during development. | `routes/auth.js`, `index.js` |
 | [x] | Register endpoint catches Prisma `P2002` unique violation and returns clean `409 Email already registered` instead of a generic 500 on a race. | `routes/auth.js` |
 | [x] | Auth test suite made hermetic: unique per-run names/emails, cleanup of created users in `afterAll`, lockout counters reset on `john@test.com` — tests now pass on repeated runs against a shared DB. | `test/auth.test.js` |
+| [x] | Password reset: `forgot-password` returns the same generic message whether or not the account exists (no email/username enumeration); reset tokens are stored hashed (SHA-256), single-use (`usedAt`), expire after 30 min, and a successful reset also clears the account lockout. | `routes/auth.js`, `utils/mailer.js`, `schema.prisma`, migration `20260812104602_add_password_reset_tokens` + `20260812105027_password_reset_cascade` |
+| [x] | Rider dispatch hardening: owners must explicitly assign a rider (`riderId` validated as a real `rider` role) before confirming an order; `PATCH /owner/orders/:id/rider` re-validates the rider and rejects assignment on terminal orders — the owner is no longer auto-assigned as rider. | `routes/owner.js`, `src/pages/owner/Dashboard.jsx` |
+| [x] | Vite dev proxy terminates `/api` and `/uploads` locally (no cross-origin calls in dev); legacy `localhost:5000` URLs in API responses are rewritten to `APP_URL`; server logs a clear EADDRINUSE error instead of crashing cryptically. | `vite.config.js`, `utils/urls.js`, `index.js` |

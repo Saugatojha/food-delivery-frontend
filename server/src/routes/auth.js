@@ -9,13 +9,14 @@ const { authenticate } = require('../middleware/auth')
 const { badRequest, conflict, unauthorized, serverError } = require('../utils/errors')
 const { validate, validatePasswordStrength } = require('../middleware/validate')
 const { generateCsrfToken, setCsrfCookie } = require('../middleware/csrf')
-const { sendVerificationEmail } = require('../utils/mailer')
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/mailer')
 const logger = require('../config/logger')
 
 const router = express.Router()
 
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_MS = 15 * 60 * 1000
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000
 
 function limitMax(prodMax) {
   return process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test' ? prodMax : 100000
@@ -36,6 +37,26 @@ const registerLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 })
+
+const forgotLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: limitMax(5),
+  message: { error: 'Too many attempts. Try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+const resetLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: limitMax(5),
+  message: { error: 'Too many attempts. Try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex')
+}
 
 function lockoutMinutesLeft(user) {
   if (!user.lockedUntil) return 0
@@ -203,6 +224,64 @@ router.post('/resend-verification', validate('login'), async (req, res) => {
 
 router.get('/me', authenticate, async (req, res) => {
   res.json({ user: req.user })
+})
+
+router.post('/forgot-password', forgotLimiter, validate('login'), async (req, res) => {
+  try {
+    const loginValue = req.body.login.trim()
+    const isEmail = loginValue.includes('@')
+    const identifier = isEmail ? loginValue.toLowerCase() : loginValue
+    const user = isEmail
+      ? await prisma.user.findUnique({ where: { email: identifier } })
+      : await prisma.user.findFirst({ where: { name: identifier } })
+
+    if (user) {
+      const rawToken = crypto.randomBytes(32).toString('hex')
+      const tokenHash = hashResetToken(rawToken)
+      await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } })
+      await prisma.passwordResetToken.create({
+        data: { token: tokenHash, userId: user.id, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS) },
+      })
+      const emailResult = await sendPasswordResetEmail(user, rawToken)
+      return res.json({
+        message: 'If an account exists for that email, a password reset link has been sent.',
+        ...(process.env.NODE_ENV !== 'production' && emailResult.devLink ? { devLink: emailResult.devLink } : {}),
+      })
+    }
+
+    res.json({ message: 'If an account exists for that email, a password reset link has been sent.' })
+  } catch (err) {
+    logger.error({ message: 'Forgot password error', error: err.message })
+    serverError(res, 'Failed to send reset email')
+  }
+})
+
+router.post('/reset-password', resetLimiter, validate('token', 'password'), validatePasswordStrength, async (req, res) => {
+  try {
+    const rawToken = req.body.token.trim()
+    const password = req.body.password
+    const tokenHash = hashResetToken(rawToken)
+
+    const reset = await prisma.passwordResetToken.findUnique({ where: { token: tokenHash }, include: { user: true } })
+    if (!reset || reset.usedAt) return badRequest(res, 'Invalid or expired reset token')
+    if (reset.expiresAt < new Date()) {
+      await prisma.passwordResetToken.delete({ where: { id: reset.id } })
+      return badRequest(res, 'Reset token has expired. Request a new one.')
+    }
+
+    const hashed = await bcrypt.hash(password, 12)
+    await prisma.user.update({
+      where: { id: reset.userId },
+      data: { password: hashed, failedLoginAttempts: 0, lockedUntil: null },
+    })
+    await prisma.passwordResetToken.update({ where: { id: reset.id }, data: { usedAt: new Date() } })
+
+    logger.info(`password reset: user ${reset.userId}`)
+    res.json({ message: 'Password reset successful. You can now log in.' })
+  } catch (err) {
+    logger.error({ message: 'Reset password error', error: err.message })
+    serverError(res, 'Failed to reset password')
+  }
 })
 
 router.post('/logout', (req, res) => {

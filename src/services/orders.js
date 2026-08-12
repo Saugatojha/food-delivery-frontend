@@ -1,4 +1,4 @@
-import api from '../api/client'
+﻿import api from '../api/client'
 
 export async function getAllOrders() {
   const { data } = await api.get('/orders')
@@ -29,8 +29,10 @@ export async function updateOrderStatus(orderId, newStatus) {
   return data
 }
 
-export async function updateOwnerOrderStatus(orderId, newStatus) {
-  const { data } = await api.patch(`/owner/orders/${orderId}/status`, { status: newStatus })
+export async function updateOwnerOrderStatus(orderId, newStatus, riderId) {
+  const payload = { status: newStatus }
+  if (riderId) payload.riderId = riderId
+  const { data } = await api.patch(`/owner/orders/${orderId}/status`, payload)
   return data
 }
 
@@ -107,3 +109,7 @@ export function getNextStatus(current, flow) {
   if (idx === -1 || idx >= flow.length - 1) return null
   return flow[idx + 1]
 }
+
+
+
+

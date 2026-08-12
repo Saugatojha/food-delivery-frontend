@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { formatPrice, CUISINE_CATEGORIES, CATEGORY_SUBCATEGORIES } from '../../data/mock'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
@@ -32,6 +32,8 @@ export default function OwnerDashboard() {
   const [restaurant, setRestaurant] = useState(null)
   const [orders, setOrders] = useState([])
   const [menuItems, setMenuItems] = useState([])
+  const [riders, setRiders] = useState([])
+  const [selectedRiderId, setSelectedRiderId] = useState('')
   const [earnings, setEarnings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [settingsForm, setSettingsForm] = useState({})
@@ -45,14 +47,16 @@ export default function OwnerDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [r, o, m] = await Promise.all([
+      const [r, o, m, riderList] = await Promise.all([
         api.get('/owner/restaurant'),
         api.get('/owner/orders'),
         api.get('/owner/menu'),
+        api.get('/owner/riders'),
       ])
       setRestaurant(r.data)
       setOrders(o.data)
       setMenuItems(m.data)
+      setRiders(riderList.data)
       if (o.data.length > orderCountRef.current) {
         playNotification()
       }
@@ -98,17 +102,21 @@ export default function OwnerDashboard() {
     fetchData()
   }
 
-  const handleOrderStatus = async (orderId, status) => {
+  const handleOrderStatus = async (orderId, status, riderId) => {
+    if (status === 'Confirmed' && !riderId) {
+      showToast('Select a rider before accepting the order', 'error')
+      return
+    }
     try {
-      await updateOwnerOrderStatus(orderId, status)
+      await updateOwnerOrderStatus(orderId, status, riderId)
       showToast(`Order #${orderId} ${status === 'Confirmed' ? 'accepted' : status}`, 'success')
       setConfirmAction(null)
+      setSelectedRiderId('')
       fetchData()
     } catch {
       showToast('Failed to update order', 'error')
     }
   }
-
   const addMenuItem = async (e) => {
     e.preventDefault()
     if (!newItem.name || !newItem.price) return
@@ -157,6 +165,24 @@ export default function OwnerDashboard() {
       fetchData()
     } catch {
       showToast('Failed to delete item', 'error')
+    }
+  }
+
+
+  const getAssignedRiderName = (order) => {
+    const riderId = order.delivery?.riderId
+    if (!riderId) return 'Unassigned'
+    return riders.find(r => r.id === riderId)?.name || `Rider #${riderId}`
+  }
+
+  const assignRider = async (orderId, riderId) => {
+    if (!riderId) return
+    try {
+      await api.patch(`/owner/orders/${orderId}/rider`, { riderId: Number(riderId) })
+      showToast('Rider assigned', 'success')
+      fetchData()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to assign rider', 'error')
     }
   }
 
@@ -285,6 +311,16 @@ export default function OwnerDashboard() {
                             Mark {next}
                           </button>
                         )}
+                        <select
+                          className="mt-2 border p-1 rounded text-xs w-full"
+                          value={order.delivery?.riderId || ''}
+                          onChange={e => assignRider(order.id, e.target.value)}
+                          disabled={riders.length === 0}
+                          aria-label={`Assign rider for order ${order.id}`}
+                        >
+                          <option value="">Assign rider</option>
+                          {riders.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
                       </div>
                     </div>
                     {renderMap(order)}
@@ -299,7 +335,7 @@ export default function OwnerDashboard() {
               <h2 className="font-semibold text-lg mb-3 mt-6">Completed Orders</h2>
               {completedOrders.map(order => (
                 <div key={order.id} className="border rounded-lg p-3 mb-2 bg-gray-50">
-                  <p className="text-sm text-gray-500">Order #{order.id} — {formatPrice(order.total)} — Delivered</p>
+                  <p className="text-sm text-gray-500">Order #{order.id} â€” {formatPrice(order.total)} â€” Delivered</p>
                 </div>
               ))}
             </>
@@ -310,7 +346,7 @@ export default function OwnerDashboard() {
               <h2 className="font-semibold text-lg mb-3 mt-6">Declined</h2>
               {declinedOrders.map(order => (
                 <div key={order.id} className="border rounded-lg p-3 mb-2 bg-gray-50">
-                  <p className="text-sm text-gray-500">Order #{order.id} — {formatPrice(order.total)}</p>
+                  <p className="text-sm text-gray-500">Order #{order.id} â€” {formatPrice(order.total)}</p>
                 </div>
               ))}
             </>
@@ -513,11 +549,25 @@ export default function OwnerDashboard() {
               <>
                 <p className="font-semibold mb-2">Accept Order #{confirmAction.order.id}?</p>
                 <p className="text-sm text-gray-500 mb-1">Total: {formatPrice(confirmAction.order.total)}</p>
-                <p className="text-sm text-gray-500 mb-4">You will be assigned as the delivery rider.</p>
+                <label className="block text-sm text-gray-600 mb-4">
+                  Assign rider
+                  <select
+                    className="mt-1 border p-2 rounded w-full text-sm"
+                    value={selectedRiderId}
+                    onChange={e => setSelectedRiderId(e.target.value)}
+                    disabled={riders.length === 0}
+                    required
+                  >
+                    <option value="">Select rider</option>
+                    {riders.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </label>
+                {riders.length === 0 && <p className="text-xs text-red-600 mb-4">No rider accounts are available.</p>}
                 <div className="flex gap-3 justify-end">
                   <button onClick={() => setConfirmAction(null)}
                     className="border px-3 py-1.5 rounded text-sm">Cancel</button>
-                  <button onClick={() => handleOrderStatus(confirmAction.order.id, 'Confirmed')}
+                  <button onClick={() => handleOrderStatus(confirmAction.order.id, 'Confirmed', Number(selectedRiderId))}
+                    disabled={!selectedRiderId}
                     className="bg-green-600 text-white px-4 py-1.5 rounded text-sm">Accept</button>
                 </div>
               </>
@@ -552,3 +602,8 @@ export default function OwnerDashboard() {
     </div>
   )
 }
+
+
+
+
+

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import AuthShell from '../components/AuthShell'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -68,7 +69,7 @@ export default function Register() {
         setTimeout(() => showToast(`Dev link: ${data.devLink}`, 'info'), 500)
       }
     } catch (err) {
-      const msg = err?.response ? (err.response.data?.error || 'Registration failed') : 'Cannot reach server — is it running on port 5001?'
+      const msg = err?.response ? (err.response.data?.error || 'Registration failed') : 'Cannot reach server â€” is it running on port 5001?'
       showToast(msg, 'error')
       console.error('Register error:', err)
     } finally {
@@ -86,8 +87,7 @@ export default function Register() {
   const strengthId = 'reg-pw-strength'
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6">
-      <h1 className="text-2xl font-bold mb-6">Register</h1>
+    <AuthShell title="Register" subtitle="Create your customer account.">
       <form onSubmit={handleSubmit} className="grid gap-4" aria-busy={loading} noValidate>
         <div className="grid grid-cols-3 gap-2">
           <div>
@@ -175,7 +175,7 @@ export default function Register() {
                   const ok = r.test(form.password)
                   return (
                     <li key={r.label} className={`text-xs flex items-center gap-1 ${ok ? 'text-green-700' : 'text-gray-400'}`}>
-                      <span aria-hidden="true">{ok ? '✓' : '○'}</span> {r.label}
+                      <span aria-hidden="true">{ok ? 'âœ“' : 'â—‹'}</span> {r.label}
                     </li>
                   )
                 })}
@@ -201,10 +201,10 @@ export default function Register() {
           </div>
           {errors.confirm && <p id="reg-confirm-error" role="alert" className="text-red-600 text-xs mt-1">{errors.confirm}</p>}
           {confirmMatch && (
-            <p id="reg-confirm-match" className="text-xs mt-1 flex items-center gap-1 text-green-700"><span aria-hidden="true">✓</span> Passwords match</p>
+            <p id="reg-confirm-match" className="text-xs mt-1 flex items-center gap-1 text-green-700"><span aria-hidden="true">âœ“</span> Passwords match</p>
           )}
           {confirmMismatch && (
-            <p id="reg-confirm-mismatch" className="text-xs mt-1 flex items-center gap-1 text-red-600" role="alert"><span aria-hidden="true">✗</span> Passwords do not match</p>
+            <p id="reg-confirm-mismatch" className="text-xs mt-1 flex items-center gap-1 text-red-600" role="alert"><span aria-hidden="true">âœ—</span> Passwords do not match</p>
           )}
         </div>
 
@@ -236,6 +236,6 @@ export default function Register() {
           <Link to="/login" className={`text-orange-700 font-medium ${FOCUS_RING}`}>Login</Link>
         </p>
       </form>
-    </div>
+    </AuthShell>
   )
 }

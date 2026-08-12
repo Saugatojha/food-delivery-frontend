@@ -14,4 +14,5 @@ module.exports = {
   port: process.env.PORT || 5001,
   jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '2h',
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 }

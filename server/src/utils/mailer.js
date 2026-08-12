@@ -8,6 +8,38 @@ function verificationUrl(token) {
   return `${origin}/api/auth/verify-email?token=${token}`
 }
 
+function passwordResetUrl(token, email) {
+  const origin = process.env.FRONTEND_URL || 'http://localhost:5173'
+  return `${origin}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`
+}
+
+async function sendPasswordResetEmail(user, token) {
+  const link = passwordResetUrl(token, user.email)
+  if (process.env.NODE_ENV !== 'production') {
+    logger.info(`[DEV EMAIL] To: ${user.email} — Reset your password: ${link}`)
+    return { devLink: link }
+  }
+
+  if (!resend) {
+    logger.error('RESEND_API_KEY is not set — cannot send email in production')
+    throw new Error('RESEND_API_KEY is not configured')
+  }
+
+  const { error } = await resend.emails.send({
+    from: process.env.RESEND_FROM || 'onboarding@resend.dev',
+    to: user.email,
+    subject: 'Reset your password',
+    html: `<p>Hello ${user.name},</p><p>Click below to reset your password. This link expires in 30 minutes.</p><a href="${link}">${link}</a>`,
+  })
+
+  if (error) {
+    logger.error({ message: 'Resend send error', error: error.message })
+    throw error
+  }
+
+  return {}
+}
+
 async function sendVerificationEmail(user, token) {
   const link = verificationUrl(token)
   if (process.env.NODE_ENV !== 'production') {
@@ -35,4 +67,4 @@ async function sendVerificationEmail(user, token) {
   return {}
 }
 
-module.exports = { sendVerificationEmail, verificationUrl }
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, verificationUrl, passwordResetUrl }

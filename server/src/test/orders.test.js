@@ -48,7 +48,7 @@ describe('GET /api/orders', () => {
 })
 
 describe('PATCH /api/orders/:id/status', () => {
-  it('owner can advance order', async () => {
+  it('requires a rider before accepting the order', async () => {
     const customerToken = await getToken()
     const order = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({
       items: [{ menuItemId: 3, restaurantId: 1, quantity: 1 }],
@@ -59,11 +59,11 @@ describe('PATCH /api/orders/:id/status', () => {
 
     const ownerToken = await getToken('owner@test.com')
     const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Confirmed' })
-    expect(res.status).toBe(200)
-    expect(res.body.status).toBe('Confirmed')
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Rider is required/)
   })
 
-  it('auto-assigns the restaurant owner as rider when the order is accepted', async () => {
+  it('assigns the chosen rider when the order is accepted', async () => {
     const customerToken = await getToken()
     const order = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({
       items: [{ menuItemId: 3, restaurantId: 1, quantity: 1 }],
@@ -72,11 +72,13 @@ describe('PATCH /api/orders/:id/status', () => {
     })
     const orderId = order.body.id
 
+    const rider = await request(app).post('/api/auth/login').send({ login: 'rider@test.com', password: 'password' })
     const ownerToken = await getToken('owner@test.com')
-    const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Confirmed' })
+    const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status: 'Confirmed', riderId: rider.body.user.id })
     expect(res.status).toBe(200)
+    expect(res.body.status).toBe('Confirmed')
     expect(res.body.delivery).toBeTruthy()
-    expect(res.body.delivery.riderId).toBeGreaterThan(0)
+    expect(res.body.delivery.riderId).toBe(rider.body.user.id)
   })
 
   it('owner can deliver the order through the full lifecycle', async () => {
@@ -88,12 +90,14 @@ describe('PATCH /api/orders/:id/status', () => {
     })
     const orderId = order.body.id
 
+    const rider = await request(app).post('/api/auth/login').send({ login: 'rider@test.com', password: 'password' })
     const ownerToken = await getToken('owner@test.com')
     const flow = ['Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered']
-    for (const status of flow) {
-      const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send({ status })
+    for (let i = 0; i < flow.length; i++) {
+      const body = i === 0 ? { status: flow[i], riderId: rider.body.user.id } : { status: flow[i] }
+      const res = await request(app).patch(`/api/owner/orders/${orderId}/status`).set('Authorization', `Bearer ${ownerToken}`).send(body)
       expect(res.status).toBe(200)
-      expect(res.body.status).toBe(status)
+      expect(res.body.status).toBe(flow[i])
     }
   })
 

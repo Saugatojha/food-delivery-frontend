@@ -8,7 +8,7 @@
 |---|---|---|
 | Customer | Places orders, tracks delivery | `/`, `/restaurant/:id`, `/cart`, `/checkout`, `/order-tracking/:id` |
 | Owner | Manages restaurant + menu, confirms orders | `/owner` (Orders / Menu / Settings) |
-| Rider | Accepts deliveries, updates status + location, views earnings | `/rider` (Available / My Deliveries / Earnings) |
+| Rider | Accepts deliveries, updates status + location, views earnings | `/owner` (shared owner dashboard — Orders / Menu / Settings) |
 | Admin | Full restaurant CRUD, app oversight | `/admin` |
 | Backend | Express + Prisma (MySQL 8) | `/api/*` |
 
@@ -35,7 +35,7 @@ sequenceDiagram
         S-->>F: 200 { token, user: { id, name, role } }
         F->>F: AuthContext stores token + user
         F-->>C: Redirect by role
-        Note over C: role === 'owner' → /owner<br/>role === 'rider' → /rider<br/>role === 'admin' → /admin<br/>else → /
+        Note over C: role === 'owner' → /owner<br/>role === 'rider' → /owner (shared dashboard)<br/>role === 'admin' → /admin<br/>else → /
     end
 ```
 
@@ -72,6 +72,42 @@ sequenceDiagram
         S->>S: sendVerificationEmail (new dev link)
         S-->>F: { message, devLink? }
         F-->>C: New link shown / sent
+    end
+```
+
+---
+
+## 1c. Password Reset
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant F as Frontend (React)
+    participant S as Backend (Express)
+    participant D as Database (Prisma)
+
+    C->>F: Open /forgot-password, enter email/username
+    F->>S: POST /api/auth/forgot-password { login }
+    S->>D: user.findUnique/findFirst by email or name
+    alt account exists
+        S->>S: rawToken = randomBytes(32) → sha256 hash
+        S->>D: delete stale tokens, create PasswordResetToken (expiresAt: now+30min)
+        S->>S: sendPasswordResetEmail (dev: prints FRONTEND_URL/reset-password link)
+    end
+    S-->>F: 200 generic "If an account exists..." message (no enumeration) + devLink?
+    F-->>C: Success screen
+
+    C->>F: Open /reset-password?token=...&email=...
+    F->>S: POST /api/auth/reset-password { token, password }
+    S->>S: sha256(token) → find PasswordResetToken (+ user)
+    alt valid + unused + not expired
+        S->>D: user.update (new bcrypt hash, clear failedLoginAttempts/lockedUntil)
+        S->>D: resetToken.update (usedAt: now)  // single-use
+        S-->>F: 200 { message }
+        F-->>C: Toast "Password reset successful" → /login
+    else invalid / used / expired
+        S-->>F: 400 "Invalid or expired reset token"
+        F-->>C: Inline error (or invalid-link screen if token missing)
     end
 ```
 
@@ -139,16 +175,16 @@ sequenceDiagram
 
     alt Accept order
         O->>F: Click Accept
-        F->>F: Confirmation modal
+        F->>F: Confirmation modal → select a rider (from GET /api/owner/riders)
         O->>F: Confirm
-        F->>S: PATCH /api/owner/orders/:id/status { status: "Confirmed" }
-        S->>S: Validate owner owns restaurant (restaurantId matches)
-        S->>D: delivery.upsert (riderId = owner, status "assigned")  // auto-assign owner as rider
+        F->>S: PATCH /api/owner/orders/:id/status { status: "Confirmed", riderId }
+        S->>S: Validate owner owns restaurant + riderId is a real rider (400 if missing)
+        S->>D: delivery.upsert (riderId = chosen rider, status "assigned")
         S->>D: order.update (Pending → Confirmed)
         D-->>S: updated order
         S->>S: notifyCustomer("Order Confirmed")
         S-->>F: 200 updated
-        F-->>O: Order shown as Confirmed
+        F-->>O: Order shown as Confirmed (rider assigned)
     else Decline order
         O->>F: Click Decline → Confirm
         F->>S: PATCH /api/owner/orders/:id/status { status: "Rejected" }
@@ -160,7 +196,7 @@ sequenceDiagram
         F-->>O: Order marked Rejected
     end
 
-    Note over O,S: Owner then advances: Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered<br/>(the owner is the auto-assigned rider for their own orders)
+    Note over O,S: Owner then advances: Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered.<br/>Riders can be (re)assigned later via PATCH /api/owner/orders/:id/rider (not on terminal orders).
 ```
 
 ---
@@ -182,7 +218,7 @@ sequenceDiagram
     S-->>F: 200 orders
     F-->>R: Available order cards + mini map (location = Kathmandu default)
 
-    Note over R,D: Accept/reject/status are scoped via canManageOrder:<br/>the restaurant owner OR the already-assigned rider.<br/>Since the owner is auto-assigned on Confirm, this is effectively the owner.
+    Note over R,D: Accept/reject/status are scoped via canManageOrder:<br/>the restaurant owner OR the already-assigned rider.<br/>Riders are assigned by the owner on Confirm (or via PATCH /owner/orders/:id/rider), not auto-assigned.
 
     alt Accept
         R->>F: Accept delivery

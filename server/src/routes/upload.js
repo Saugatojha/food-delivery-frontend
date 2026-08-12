@@ -1,4 +1,4 @@
-const express = require('express')
+﻿const express = require('express')
 const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
@@ -60,9 +60,9 @@ router.post('/image', authenticate, authorize('owner', 'rider', 'admin'), (req, 
       fs.unlink(req.file.path, () => {})
       return res.status(400).json({ error: 'File content does not match its declared image type' })
     }
-    const origin = process.env.APP_URL || `${req.protocol}://${req.get('host') || 'localhost:5001'}`
-    res.json({ url: `${origin}/uploads/${req.file.filename}` })
+    res.json({ url: `/uploads/${req.file.filename}` })
   })
 })
 
 module.exports = router
+

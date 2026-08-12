@@ -17,6 +17,7 @@ const adminRoutes = require('./routes/admin')
 const cartRoutes = require('./routes/cart')
 const uploadRoutes = require('./routes/upload')
 const notificationRoutes = require('./routes/notifications')
+const { legacyUrlRewriteMiddleware } = require('./utils/urls')
 
 const app = express()
 
@@ -39,6 +40,7 @@ app.use(cors({
 }))
 app.use(cookieParser())
 app.use(express.json())
+app.use(legacyUrlRewriteMiddleware)
 
 if (process.env.NODE_ENV !== 'test') {
   app.use((req, res, next) => {
@@ -72,8 +74,16 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }))
 
 if (require.main === module) {
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     logger.info(`Server running on port ${port}`)
+  })
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      logger.error(`Port ${port} is already in use. Another server instance may be running. ` +
+        `Stop it first, or change PORT in server/.env.`)
+      process.exit(1)
+    }
+    throw err
   })
 }
 

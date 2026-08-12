@@ -1,7 +1,8 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import AuthShell from '../components/AuthShell'
 
 const BTN = 'bg-orange-600 text-white p-3 rounded font-medium hover:bg-orange-700 active:bg-orange-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2'
 const INPUT = 'border p-2 rounded w-full focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-400 transition-colors'
@@ -46,7 +47,7 @@ export default function Login() {
       const u = await login(form.login, form.password)
       setUnverifiedEmail('')
       showToast('Welcome back!', 'success')
-      const roleRoutes = { rider: '/rider', owner: '/owner', admin: '/admin' }
+      const roleRoutes = { rider: '/owner', owner: '/owner', admin: '/admin' }
       navigate(roleRoutes[u.role] || '/')
     } catch (err) {
       const status = err?.response?.status
@@ -61,6 +62,9 @@ export default function Login() {
       } else if (status === 429) {
         setUnverifiedEmail('')
         showToast('Too many attempts. Try again later.', 'error')
+      } else if (!err.response) {
+        setUnverifiedEmail('')
+        showToast('Cannot reach server. Check your connection and try again.', 'error')
       } else {
         setUnverifiedEmail('')
         showToast('Invalid email/username or password', 'error')
@@ -71,9 +75,7 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6">
-      <h1 className="text-2xl font-bold mb-1">Login</h1>
-      <p className="text-sm text-gray-500 mb-6">Welcome back! Sign in to your account.</p>
+    <AuthShell title="Login" subtitle="Welcome back! Sign in to your account.">
       {unverifiedEmail && (
         <div role="alert" className="mb-4 border border-amber-300 bg-amber-50 text-amber-800 rounded p-3 text-sm">
           Your email is not verified yet. Please verify it before logging in.
@@ -133,6 +135,6 @@ export default function Login() {
           <Link to="/privacy" className={`text-orange-700 underline ${FOCUS_RING}`}>Privacy Policy</Link>.
         </p>
       </form>
-    </div>
+    </AuthShell>
   )
 }

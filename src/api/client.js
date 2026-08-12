@@ -1,9 +1,12 @@
 import axios from 'axios'
 import { removeKeys } from '../utils/storage'
 
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   withCredentials: true,
+  timeout: 10000,
 })
 
 function getCsrfToken() {
@@ -22,11 +25,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    if (err.response?.status === 401 && !PUBLIC_PATHS.includes(window.location.pathname)) {
       removeKeys('user')
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
-      }
+      window.location.href = '/login'
     }
     return Promise.reject(err)
   }

@@ -181,6 +181,67 @@ describe('POST /api/auth/login — persistent account lockout (DB-backed)', () =
   })
 })
 
+describe('POST /api/auth/forgot-password + reset-password', () => {
+  const ts = Date.now()
+  const email = `reset${ts}@test.com`
+  const originalPassword = 'StrongPass1!'
+  const newPassword = 'NewStrongPass1!'
+  let resetToken
+  createdEmails.push(email)
+
+  it('registers and verifies a fresh account for reset testing', async () => {
+    const reg = await request(app).post('/api/auth/register').send({ name: `Reset Test ${ts}`, email, password: originalPassword })
+    expect(reg.status).toBe(201)
+    const token = new URL(reg.body.devLink).searchParams.get('token')
+    const verify = await request(app).get(`/api/auth/verify-email?token=${token}`)
+    expect(verify.status).toBe(200)
+  })
+
+  it('returns a generic message for an unknown email (no enumeration)', async () => {
+    const res = await request(app).post('/api/auth/forgot-password').send({ login: 'nobody@test.com' })
+    expect(res.status).toBe(200)
+    expect(res.body.message).toMatch(/If an account exists/)
+    expect(res.body.devLink).toBeFalsy()
+  })
+
+  it('sends a reset link for a known user', async () => {
+    const res = await request(app).post('/api/auth/forgot-password').send({ login: email })
+    expect(res.status).toBe(200)
+    expect(res.body.devLink).toMatch(/\/reset-password\?token=/)
+    resetToken = new URL(res.body.devLink).searchParams.get('token')
+    expect(resetToken).toBeTruthy()
+  })
+
+  it('rejects reset with a weak password', async () => {
+    const res = await request(app).post('/api/auth/reset-password').send({ token: resetToken, password: 'weak' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Password/i)
+  })
+
+  it('rejects an invalid reset token', async () => {
+    const res = await request(app).post('/api/auth/reset-password').send({ token: 'not-a-real-token', password: newPassword })
+    expect(res.status).toBe(400)
+  })
+
+  it('resets the password and allows login with the new password', async () => {
+    const res = await request(app).post('/api/auth/reset-password').send({ token: resetToken, password: newPassword })
+    expect(res.status).toBe(200)
+    expect(res.body.message).toMatch(/reset successful/i)
+
+    const oldLogin = await request(app).post('/api/auth/login').send({ login: email, password: originalPassword })
+    expect(oldLogin.status).toBe(401)
+
+    const newLogin = await request(app).post('/api/auth/login').send({ login: email, password: newPassword })
+    expect(newLogin.status).toBe(200)
+    expect(newLogin.body.user.email).toBe(email)
+  })
+
+  it('rejects reuse of the same reset token', async () => {
+    const res = await request(app).post('/api/auth/reset-password').send({ token: resetToken, password: originalPassword })
+    expect(res.status).toBe(400)
+  })
+})
+
 describe('POST /api/auth/register — rate limiting', () => {
   let remaining
   it('starts returning 429 after limit exceeded', async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationContext'
@@ -62,7 +62,7 @@ export default function Navbar() {
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
           >
-            {menuOpen ? '✕' : '☰'}
+            {menuOpen ? 'âœ•' : 'â˜°'}
           </button>
 
           <div className={`${menuOpen ? 'flex' : 'hidden'} sm:flex absolute sm:static top-14 left-0 right-0 bg-orange-500 sm:bg-transparent flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center text-sm sm:text-base p-4 sm:p-0 z-50 shadow-lg sm:shadow-none`}>

@@ -40,6 +40,16 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
+  const forgotPassword = useCallback(async (loginValue) => {
+    const { data } = await api.post('/auth/forgot-password', { login: loginValue.trim() })
+    return data
+  }, [])
+
+  const resetPassword = useCallback(async (token, password) => {
+    const { data } = await api.post('/auth/reset-password', { token: token.trim(), password })
+    return data
+  }, [])
+
   const logout = useCallback(async () => {
     try { await api.post('/auth/logout') } catch {}
     removeKeys('user')
@@ -47,7 +57,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, verifyEmail, resendVerification, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, verifyEmail, resendVerification, forgotPassword, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,4 +1,4 @@
-const express = require('express')
+﻿const express = require('express')
 const prisma = require('../config/database')
 const { authenticate, authorize } = require('../middleware/auth')
 const { notFound, badRequest, forbidden, serverError } = require('../utils/errors')
@@ -9,6 +9,19 @@ const { notifyCustomer } = require('../utils/notify')
 const router = express.Router()
 
 router.use(authenticate, authorize('owner', 'rider'))
+
+router.get('/riders', async (req, res) => {
+  try {
+    const riders = await prisma.user.findMany({
+      where: { role: 'rider' },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    })
+    res.json(riders)
+  } catch (err) {
+    serverError(res, 'Failed to fetch riders')
+  }
+})
 
 async function getRestaurant(userId) {
   return prisma.restaurant.findUnique({ where: { ownerId: userId } })
@@ -135,9 +148,42 @@ router.patch('/restaurant', async (req, res) => {
   }
 })
 
+router.patch('/orders/:id/rider', async (req, res) => {
+  try {
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const order = await prisma.order.findFirst({
+      where: { id: Number(req.params.id), restaurantId: restaurant.id },
+    })
+    if (!order) return notFound(res, 'Order not found')
+    if (TERMINAL_STATUSES.includes(order.status)) return badRequest(res, 'Cannot assign a rider to a terminal order')
+
+    const riderId = Number(req.body.riderId)
+    if (!riderId) return badRequest(res, 'Rider is required')
+
+    const rider = await prisma.user.findFirst({ where: { id: riderId, role: 'rider' } })
+    if (!rider) return badRequest(res, 'Rider not found')
+
+    await prisma.delivery.upsert({
+      where: { orderId: order.id },
+      update: { riderId: rider.id, status: 'assigned', address: order.address },
+      create: { orderId: order.id, riderId: rider.id, address: order.address, status: 'assigned' },
+    })
+
+    const updated = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
+    })
+    res.json(updated)
+  } catch (err) {
+    serverError(res, 'Failed to assign rider')
+  }
+})
+
 router.patch('/orders/:id/status', validate('status'), async (req, res) => {
   try {
-    const { status } = req.body
+    const { status, riderId } = req.body
     const restaurant = await requireRestaurant(req.user.id, res)
     if (!restaurant) return
 
@@ -155,10 +201,15 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
     }
 
     if (status === 'Confirmed') {
+      const assignedRiderId = Number(riderId)
+      if (!assignedRiderId) return badRequest(res, 'Rider is required before accepting the order')
+      const rider = await prisma.user.findFirst({ where: { id: assignedRiderId, role: 'rider' } })
+      if (!rider) return badRequest(res, 'Rider not found')
+
       await prisma.delivery.upsert({
         where: { orderId: order.id },
-        update: { riderId: req.user.id, status: 'assigned' },
-        create: { orderId: order.id, riderId: req.user.id, address: order.address, status: 'assigned' },
+        update: { riderId: rider.id, status: 'assigned', address: order.address },
+        create: { orderId: order.id, riderId: rider.id, address: order.address, status: 'assigned' },
       })
     }
 
@@ -170,7 +221,7 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
     res.json(updated)
 
     if (status === 'Confirmed') {
-      notifyCustomer(order, 'Order accepted', `Great news — order #${order.id} has been accepted by the restaurant.`)
+      notifyCustomer(order, 'Order accepted', `Great news â€” order #${order.id} has been accepted by the restaurant.`)
     } else if (status === 'Rejected') {
       notifyCustomer(order, 'Order declined', `Sorry, order #${order.id} was declined by the restaurant.`)
     }
@@ -180,3 +231,5 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
 })
 
 module.exports = router
+
+

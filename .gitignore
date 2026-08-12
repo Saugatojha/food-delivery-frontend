@@ -26,3 +26,5 @@ server/uploads
 *.njsproj
 *.sln
 *.sw?
+.aider*
+test-results/
