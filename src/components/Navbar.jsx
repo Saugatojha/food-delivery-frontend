@@ -52,7 +52,10 @@ export default function Navbar() {
 
   return (
     <nav className="bg-orange-500 text-white px-4 sm:px-6 py-3 flex items-center justify-between">
-      <Link to={user ? '/' : '/login'} className={`text-xl font-bold ${FOCUS_RING}`} aria-label="Home">Smart Serve</Link>
+      <Link to={user ? '/' : '/login'} className={`text-xl font-bold flex items-center gap-3 ${FOCUS_RING}`} aria-label="Home">
+          <img src="/logo.png" alt="Smart Serve" className="h-8 w-auto" />
+          <span className="sr-only">Smart Serve</span>
+        </Link>
 
       {user && (
         <>

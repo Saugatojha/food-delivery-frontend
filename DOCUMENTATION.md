@@ -1,3 +1,5 @@
+![Smart Serve](/logo.png)
+
 # SmartServe — Full-Stack Documentation
 
 ## Project Overview

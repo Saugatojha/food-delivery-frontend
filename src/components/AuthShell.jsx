@@ -14,7 +14,7 @@ export default function AuthShell({ title, subtitle, children }) {
           <div className="hidden bg-orange-600/90 p-8 text-white md:flex md:flex-col md:justify-between">
             <div>
               <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded bg-white/15 text-2xl font-bold">
-                S
+                <img src="/logo.png" alt="Smart Serve" className="h-10 w-auto" />
               </div>
               <h2 className="text-3xl font-bold leading-tight">Smart Serve</h2>
               <p className="mt-3 text-sm leading-6 text-orange-50">
