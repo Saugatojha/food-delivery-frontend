@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test('customer can log in and see restaurants', async ({ page }) => {
   await page.goto('/login')
-  await page.fill('#login-field', 'john@test.com')
+  await page.fill('#login-field', 'john@example.com')
   await page.fill('#login-pw', 'password')
   await page.click('button[aria-label="Login"]')
   await expect(page).toHaveURL('/')
@@ -13,7 +13,7 @@ test('customer can log in and see restaurants', async ({ page }) => {
 
 test('login with wrong password shows error', async ({ page }) => {
   await page.goto('/login')
-  await page.fill('#login-field', 'john@test.com')
+  await page.fill('#login-field', 'john@example.com')
   await page.fill('#login-pw', 'wrongpassword')
   await page.click('button[aria-label="Login"]')
   await expect(page.locator('text=Invalid email/username or password')).toBeVisible({ timeout: 10000 })
@@ -22,7 +22,7 @@ test('login with wrong password shows error', async ({ page }) => {
 test('login shows server-unreachable message when backend is down', async ({ page }) => {
   await page.route('**/api/auth/login', route => route.abort())
   await page.goto('/login')
-  await page.fill('#login-field', 'john@test.com')
+  await page.fill('#login-field', 'john@example.com')
   await page.fill('#login-pw', 'password')
   await page.click('button[aria-label="Login"]')
   await expect(page.locator('text=Cannot reach server. Check your connection and try again.')).toBeVisible({ timeout: 10000 })

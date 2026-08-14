@@ -254,12 +254,12 @@ Notification fields:
 
 **Users (all passwords: `password`):**
 
-| Name         | Email          | Role     | Notes                                      |
-| ------------ | -------------- | -------- | ------------------------------------------ |
-| John Doe     | john@test.com  | customer | Default customer (emailVerified)           |
-| Pizza Palace | owner@test.com | owner    | Linked to restaurant ID 1 (emailVerified)  |
-| Rider Ram    | rider@test.com | rider    | Can update delivery status (emailVerified) |
-| Admin User   | admin@test.com | admin    | Full system overview (emailVerified)       |
+| Name         | Email             | Role     | Notes                                      |
+| ------------ | ----------------- | -------- | ------------------------------------------ |
+| John Doe     | john@example.com  | customer | Default customer (emailVerified)           |
+| Pizza Palace | owner@example.com | owner    | Linked to restaurant ID 1 (emailVerified)  |
+| Rider Ram    | rider@example.com | rider    | Can update delivery status (emailVerified) |
+| Admin User   | admin@example.com | admin    | Full system overview (emailVerified)       |
 
 > All seed users are created with `emailVerified: true`, so demo logins work without verification. New registrations require email verification before login (dev mailer prints the link to the server console).
 

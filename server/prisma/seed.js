@@ -17,27 +17,27 @@ async function main() {
   await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1')
 
   const customer = await prisma.user.upsert({
-    where: { email: 'john@test.com' },
+    where: { email: 'john@example.com' },
     update: { emailVerified: true },
-    create: { name: 'John Doe', email: 'john@test.com', password, role: 'customer', emailVerified: true },
+    create: { name: 'John Doe', email: 'john@example.com', password, role: 'customer', emailVerified: true },
   })
 
   const ownerUser = await prisma.user.upsert({
-    where: { email: 'owner@test.com' },
+    where: { email: 'owner@example.com' },
     update: { emailVerified: true },
-    create: { name: 'Pizza Palace', email: 'owner@test.com', password, role: 'owner', emailVerified: true },
+    create: { name: 'Pizza Palace', email: 'owner@example.com', password, role: 'owner', emailVerified: true },
   })
 
   await prisma.user.upsert({
-    where: { email: 'rider@test.com' },
+    where: { email: 'rider@example.com' },
     update: { emailVerified: true },
-    create: { name: 'Rider Ram', email: 'rider@test.com', password, role: 'rider', emailVerified: true },
+    create: { name: 'Rider Ram', email: 'rider@example.com', password, role: 'rider', emailVerified: true },
   })
 
   await prisma.user.upsert({
-    where: { email: 'admin@test.com' },
+    where: { email: 'admin@example.com' },
     update: { emailVerified: true },
-    create: { name: 'Admin User', email: 'admin@test.com', password, role: 'admin', emailVerified: true },
+    create: { name: 'Admin User', email: 'admin@example.com', password, role: 'admin', emailVerified: true },
   })
 
   const restaurants = [

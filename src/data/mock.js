@@ -1,8 +1,8 @@
 export const MOCK_USERS = [
-  { id: 1, name: 'John Doe', email: 'john@test.com', password: 'password', role: 'customer' },
-  { id: 2, name: 'Pizza Palace', email: 'owner@test.com', password: 'password', role: 'owner', restaurantId: 1 },
-  { id: 3, name: 'Rider Ram', email: 'rider@test.com', password: 'password', role: 'rider' },
-  { id: 4, name: 'Admin User', email: 'admin@test.com', password: 'password', role: 'admin' },
+  { id: 1, name: 'John Doe', email: 'john@example.com', password: 'password', role: 'customer' },
+  { id: 2, name: 'Pizza Palace', email: 'owner@example.com', password: 'password', role: 'owner', restaurantId: 1 },
+  { id: 3, name: 'Rider Ram', email: 'rider@example.com', password: 'password', role: 'rider' },
+  { id: 4, name: 'Admin User', email: 'admin@example.com', password: 'password', role: 'admin' },
 ]
 
 export const MOCK_RESTAURANTS = [
