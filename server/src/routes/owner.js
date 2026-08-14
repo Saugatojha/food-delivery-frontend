@@ -117,6 +117,93 @@ router.delete('/menu/:id', async (req, res) => {
   }
 })
 
+// Get all unique categories for this restaurant's menu
+router.get('/menu/categories', async (req, res) => {
+  try {
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const items = await prisma.menuItem.findMany({
+      where: { restaurantId: restaurant.id },
+      select: { category: true },
+      distinct: ['category'],
+    })
+    const categories = items.map(i => i.category).sort()
+    res.json(categories)
+  } catch (err) {
+    serverError(res, 'Failed to fetch categories')
+  }
+})
+
+// Add a new category (just creating an empty slot or marker)
+router.post('/menu/categories', validate('name'), async (req, res) => {
+  try {
+    const { name } = req.body
+    if (!name || name.trim().length === 0) {
+      return badRequest(res, 'Category name cannot be empty')
+    }
+    if (name.length > 50) {
+      return badRequest(res, 'Category name must be under 50 characters')
+    }
+    res.status(201).json({ category: name.trim() })
+  } catch (err) {
+    serverError(res, 'Failed to add category')
+  }
+})
+
+// Rename a category (update all items with old category to new category)
+router.patch('/menu/categories/:oldName', validate('newName'), async (req, res) => {
+  try {
+    const { oldName } = req.params
+    const { newName } = req.body
+    
+    if (!newName || newName.trim().length === 0) {
+      return badRequest(res, 'New category name cannot be empty')
+    }
+    if (newName.length > 50) {
+      return badRequest(res, 'Category name must be under 50 characters')
+    }
+
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const updated = await prisma.menuItem.updateMany({
+      where: { restaurantId: restaurant.id, category: oldName },
+      data: { category: newName.trim() },
+    })
+
+    if (updated.count === 0) {
+      return notFound(res, 'Category not found')
+    }
+
+    res.json({ message: `Renamed ${updated.count} items`, newCategory: newName.trim() })
+  } catch (err) {
+    serverError(res, 'Failed to rename category')
+  }
+})
+
+// Delete a category (remove all items in this category)
+router.delete('/menu/categories/:name', async (req, res) => {
+  try {
+    const { name } = req.params
+    
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const deleted = await prisma.menuItem.deleteMany({
+      where: { restaurantId: restaurant.id, category: name },
+    })
+
+    if (deleted.count === 0) {
+      return notFound(res, 'Category not found')
+    }
+
+    res.json({ message: `Deleted ${deleted.count} items from category` })
+  } catch (err) {
+    serverError(res, 'Failed to delete category')
+  }
+})
+
 router.get('/restaurant', async (req, res) => {
   try {
     const r = await getRestaurant(req.user.id)

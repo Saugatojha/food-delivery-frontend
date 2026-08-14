@@ -47,6 +47,9 @@ export default function OwnerDashboard() {
 
   const [newItem, setNewItem] = useState({ name: '', category: '', subCategory: '', price: '', desc: '', image: '' })
   const [editingItem, setEditingItem] = useState(null)
+  const [editingCategory, setEditingCategory] = useState(null)
+  const [newCategory, setNewCategory] = useState('')
+  const [customCategories, setCustomCategories] = useState([])
 
   const orderCountRef = useRef(0)
 
@@ -89,12 +92,28 @@ export default function OwnerDashboard() {
     return () => clearInterval(interval)
   }, [fetchData])
 
+  useEffect(() => {
+    if (!isRider && tab === 'menu') {
+      fetchCategories()
+    }
+  }, [fetchCategories, tab, isRider])
+
   const fetchEarnings = useCallback(async () => {
     try {
       const data = await getRiderEarnings()
       setEarnings(data)
     } catch { }
   }, [])
+
+  const fetchCategories = useCallback(async () => {
+    if (isRider) return
+    try {
+      const { data } = await api.get('/owner/menu/categories')
+      setCustomCategories(data)
+    } catch (err) {
+      console.error('Failed to fetch categories:', err)
+    }
+  }, [isRider])
 
   useEffect(() => {
     if (tab === 'earnings') fetchEarnings()
@@ -108,6 +127,45 @@ export default function OwnerDashboard() {
       fetchData()
     } catch (err) {
       showToast(err?.response?.data?.error || 'Failed to update delivery', 'error')
+    }
+  }
+
+  const addCategory = async (e) => {
+    e.preventDefault()
+    if (!newCategory.trim()) return
+    try {
+      await api.post('/owner/menu/categories', { name: newCategory.trim() })
+      showToast(`Category "${newCategory}" added`, 'success')
+      setNewCategory('')
+      fetchCategories()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to add category', 'error')
+    }
+  }
+
+  const updateCategory = async (e, oldName) => {
+    e.preventDefault()
+    if (!editingCategory?.newName?.trim() || editingCategory.newName === oldName) return
+    try {
+      await api.patch(`/owner/menu/categories/${encodeURIComponent(oldName)}`, { newName: editingCategory.newName.trim() })
+      showToast(`Category renamed to "${editingCategory.newName}"`, 'success')
+      setEditingCategory(null)
+      fetchCategories()
+      fetchData()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to rename category', 'error')
+    }
+  }
+
+  const deleteCategory = async (categoryName) => {
+    try {
+      await api.delete(`/owner/menu/categories/${encodeURIComponent(categoryName)}`)
+      showToast(`Category "${categoryName}" and its items deleted`, 'success')
+      setConfirmAction(null)
+      fetchCategories()
+      fetchData()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to delete category', 'error')
     }
   }
 
@@ -479,59 +537,137 @@ export default function OwnerDashboard() {
       )}
 
       {tab === 'menu' && !isRider && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3">
             <h2 className="font-semibold text-lg mb-3">Menu Items</h2>
-            {[...categories, 'Other'].map(cat => {
-              const items = cat === 'Other'
-                ? menuItems.filter(i => !categories.includes(i.category))
-                : menuItems.filter(i => i.category === cat)
-              if (items.length === 0) return null
-              const subCats = [...new Set(items.map(i => i.subCategory || 'General'))]
-              return (
-                <div key={cat} className="mb-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">{cat}</h3>
-                  {subCats.filter(Boolean).map(sub => {
-                    const subItems = items.filter(i => (i.subCategory || 'General') === sub)
-                    return (
-                      <div key={sub} className="mb-2">
-                        <p className="text-xs text-gray-400 ml-1 mb-1">{sub}</p>
-                        {subItems.map(item => (
-                          <div key={item.id} className="border rounded-lg p-3 mb-1.5 bg-white flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                              {item.image && <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover" />}
-                              <div>
-                                <p className="font-medium">{item.name}</p>
-                                <p className="text-sm text-gray-500">{item.desc}</p>
-                                <p className="text-sm font-bold text-orange-600">{formatPrice(item.price)}</p>
+            {customCategories.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">No categories yet. Create one to get started!</p>
+            ) : (
+              customCategories.map(cat => {
+                const items = menuItems.filter(i => i.category === cat)
+                if (items.length === 0) return null
+                const subCats = [...new Set(items.map(i => i.subCategory || 'General'))]
+                return (
+                  <div key={cat} className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{cat}</h3>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => setEditingCategory({ oldName: cat, newName: cat })}
+                          className="text-blue-600 text-xs hover:underline"
+                        >
+                          Rename
+                        </button>
+                        <button 
+                          onClick={() => setConfirmAction({ type: 'deleteCategory', categoryName: cat, itemCount: items.length })}
+                          className="text-red-600 text-xs hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    {subCats.filter(Boolean).map(sub => {
+                      const subItems = items.filter(i => (i.subCategory || 'General') === sub)
+                      return (
+                        <div key={sub} className="mb-2">
+                          <p className="text-xs text-gray-400 ml-1 mb-1">{sub}</p>
+                          {subItems.map(item => (
+                            <div key={item.id} className="border rounded-lg p-3 mb-1.5 bg-white flex justify-between items-center">
+                              <div className="flex items-center gap-3">
+                                {item.image && <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover" />}
+                                <div>
+                                  <p className="font-medium">{item.name}</p>
+                                  <p className="text-sm text-gray-500">{item.desc}</p>
+                                  <p className="text-sm font-bold text-orange-600">{formatPrice(item.price)}</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => setEditingItem(item)}
+                                  className="text-blue-600 text-sm hover:underline">Edit</button>
+                                <button onClick={() => setConfirmAction({ type: 'delete', itemId: item.id, itemName: item.name })}
+                                  className="text-red-500 text-sm hover:underline">Delete</button>
                               </div>
                             </div>
-                            <div className="flex gap-2">
-                              <button onClick={() => setEditingItem(item)}
-                                className="text-blue-600 text-sm hover:underline">Edit</button>
-                              <button onClick={() => setConfirmAction({ type: 'delete', itemId: item.id, itemName: item.name })}
-                                className="text-red-500 text-sm hover:underline">Delete</button>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })
+            )}
+            {menuItems.length === 0 && <p className="text-gray-400 text-center py-8">No menu items yet</p>}
+          </div>
+
+          <div className="space-y-4">
+            {/* Category Management */}
+            <div className="border rounded-lg p-4 bg-white sticky top-4">
+              <h3 className="font-semibold mb-3 text-sm">Manage Categories</h3>
+              
+              {editingCategory ? (
+                <form onSubmit={(e) => updateCategory(e, editingCategory.oldName)} className="mb-4">
+                  <input 
+                    type="text"
+                    className="border p-2 rounded w-full mb-2 text-sm"
+                    placeholder="New category name"
+                    value={editingCategory.newName}
+                    onChange={(e) => setEditingCategory(p => ({ ...p, newName: e.target.value }))}
+                    required
+                  />
+                  <div className="flex gap-2">
+                    <button type="submit" className="bg-blue-500 text-white px-3 py-1.5 rounded text-xs flex-1">
+                      Rename
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setEditingCategory(null)}
+                      className="border px-3 py-1.5 rounded text-xs flex-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={addCategory} className="mb-4">
+                  <input
+                    type="text"
+                    className="border p-2 rounded w-full mb-2 text-sm"
+                    placeholder="New category name"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    maxLength="50"
+                    required
+                  />
+                  <button type="submit" className="w-full bg-orange-500 text-white px-3 py-1.5 rounded text-sm font-medium">
+                    Add Category
+                  </button>
+                </form>
+              )}
+              
+              <div className="border-t pt-3">
+                <p className="text-xs text-gray-600 mb-2 font-medium">Categories ({customCategories.length})</p>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {customCategories.map(cat => {
+                    const itemCount = menuItems.filter(i => i.category === cat).length
+                    return (
+                      <div key={cat} className="text-xs bg-gray-50 p-2 rounded flex items-center justify-between">
+                        <span className="truncate">{cat} ({itemCount})</span>
                       </div>
                     )
                   })}
                 </div>
-              )
-            })}
-            {menuItems.length === 0 && <p className="text-gray-400 text-center py-8">No menu items yet</p>}
-          </div>
+              </div>
+            </div>
 
-          <div>
+            {/* Add Menu Item */}
             {editingItem ? (
-              <form onSubmit={updateMenuItem} className="border rounded-lg p-4 bg-white sticky top-4">
-                <h3 className="font-semibold mb-3">Edit Item</h3>
+              <form onSubmit={updateMenuItem} className="border rounded-lg p-4 bg-white sticky top-80">
+                <h3 className="font-semibold mb-3 text-sm">Edit Item</h3>
                 <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Name"
                   value={editingItem.name} onChange={e => setEditingItem(p => ({ ...p, name: e.target.value }))} required />
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={editingItem.category} onChange={e => setEditingItem(p => ({ ...p, category: e.target.value, subCategory: '' }))}>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  {customCategories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={editingItem.subCategory} onChange={e => setEditingItem(p => ({ ...p, subCategory: e.target.value }))}>
@@ -546,20 +682,20 @@ export default function OwnerDashboard() {
                   <ImageUpload value={editingItem.image || ''} onChange={(url) => setEditingItem(p => ({ ...p, image: url }))} label="Item image" />
                 </div>
                 <div className="flex gap-2">
-                  <button type="submit" className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm">Save</button>
+                  <button type="submit" className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm flex-1">Save</button>
                   <button type="button" onClick={() => setEditingItem(null)}
-                    className="border px-3 py-1.5 rounded text-sm">Cancel</button>
+                    className="border px-3 py-1.5 rounded text-sm flex-1">Cancel</button>
                 </div>
               </form>
             ) : (
-              <form onSubmit={addMenuItem} className="border rounded-lg p-4 bg-white sticky top-4">
-                <h3 className="font-semibold mb-3">Add Menu Item</h3>
+              <form onSubmit={addMenuItem} className="border rounded-lg p-4 bg-white sticky top-80">
+                <h3 className="font-semibold mb-3 text-sm">Add Menu Item</h3>
                 <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Item name"
                   value={newItem.name} onChange={e => setNewItem(p => ({ ...p, name: e.target.value }))} required />
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={newItem.category} onChange={e => setNewItem(p => ({ ...p, category: e.target.value, subCategory: '' }))}>
                   <option value="">Select category</option>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  {customCategories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={newItem.subCategory} onChange={e => setNewItem(p => ({ ...p, subCategory: e.target.value }))}>
@@ -573,7 +709,7 @@ export default function OwnerDashboard() {
                 <div className="mb-3">
                   <ImageUpload value={newItem.image || ''} onChange={(url) => setNewItem(p => ({ ...p, image: url }))} label="Item image" />
                 </div>
-                <button type="submit" className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm">Add Item</button>
+                <button type="submit" className="w-full bg-orange-500 text-white px-3 py-1.5 rounded text-sm font-medium">Add Item</button>
               </form>
             )}
           </div>
@@ -729,6 +865,18 @@ export default function OwnerDashboard() {
                     className="border px-3 py-1.5 rounded text-sm">Cancel</button>
                   <button onClick={() => handleRiderOrderStatus(confirmAction.orderId, 'Delivered')}
                     className="bg-green-600 text-white px-4 py-1.5 rounded text-sm">Confirm Delivery</button>
+                </div>
+              </>
+            )}
+            {confirmAction.type === 'deleteCategory' && (
+              <>
+                <p className="font-semibold mb-2">Delete Category "{confirmAction.categoryName}"?</p>
+                <p className="text-sm text-gray-500 mb-4">This will delete the category and all {confirmAction.itemCount} menu items in it. This cannot be undone.</p>
+                <div className="flex gap-3 justify-end">
+                  <button onClick={() => setConfirmAction(null)}
+                    className="border px-3 py-1.5 rounded text-sm">Cancel</button>
+                  <button onClick={() => deleteCategory(confirmAction.categoryName)}
+                    className="bg-red-500 text-white px-4 py-1.5 rounded text-sm">Delete Category</button>
                 </div>
               </>
             )}
