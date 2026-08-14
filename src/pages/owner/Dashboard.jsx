@@ -5,7 +5,7 @@ import { CardSkeleton } from '../../components/LoadingSkeleton'
 import ImageUpload from '../../components/ImageUpload'
 import MapView from '../../components/MapView'
 import api from '../../api/client'
-import { updateOwnerOrderStatus, getRiderEarnings, STATUS_FLOWS, getNextStatus } from '../../services/orders'
+import { updateOwnerOrderStatus, getRiderEarnings, STATUS_FLOWS, getNextStatus, getAllowedTransitions } from '../../services/orders'
 
 const STATUS_FLOW = STATUS_FLOWS.owner
 const TERMINAL = ['Delivered', 'Rejected', 'Cancelled']
@@ -289,7 +289,7 @@ export default function OwnerDashboard() {
             <>
               <h2 className="font-semibold text-lg mb-3 mt-6">Active Orders</h2>
               {activeOrders.map(order => {
-                const next = TERMINAL.includes(order.status) ? null : getNextStatus(order.status, STATUS_FLOW)
+                const allowed = getAllowedTransitions(order.status, STATUS_FLOW)
                 return (
                   <div key={order.id} className="border rounded-lg p-4 mb-3 bg-white">
                     <div className="flex justify-between items-start">
@@ -305,11 +305,22 @@ export default function OwnerDashboard() {
                         }`}>
                           {order.status}
                         </span>
-                        {next && (
-                          <button onClick={() => handleOrderStatus(order.id, next)}
-                            className="bg-orange-500 text-white px-3 py-1 rounded text-xs font-medium hover:bg-orange-600">
-                            Mark {next}
-                          </button>
+                        {allowed.length > 0 && (
+                          <div className="flex flex-col gap-1.5 mb-2">
+                            {allowed.map(status => (
+                              <button 
+                                key={status}
+                                onClick={() => handleOrderStatus(order.id, status)}
+                                className={`px-3 py-1.5 rounded text-xs font-medium text-white transition ${
+                                  status === 'Rejected' 
+                                    ? 'bg-red-500 hover:bg-red-600' 
+                                    : 'bg-orange-500 hover:bg-orange-600'
+                                }`}
+                              >
+                                Mark {status}
+                              </button>
+                            ))}
+                          </div>
                         )}
                         <select
                           className="mt-2 border p-1 rounded text-xs w-full"

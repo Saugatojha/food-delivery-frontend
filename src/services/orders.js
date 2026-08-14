@@ -110,6 +110,20 @@ export function getNextStatus(current, flow) {
   return flow[idx + 1]
 }
 
+export function getAllowedTransitions(current, flow) {
+  const idx = flow.indexOf(current)
+  if (idx === -1 || idx >= flow.length - 1) return []
+  // For Pending status, allow both Confirmed and Rejected
+  if (current === 'Pending') {
+    const allowed = []
+    if (flow.includes('Confirmed')) allowed.push('Confirmed')
+    if (flow.includes('Rejected')) allowed.push('Rejected')
+    return allowed
+  }
+  // For other statuses, return only the next status in flow
+  return [flow[idx + 1]]
+}
+
 
 
 
