@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react'
+import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { formatPrice, CUISINE_CATEGORIES, CATEGORY_SUBCATEGORIES } from '../../data/mock'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
@@ -27,10 +28,14 @@ function playNotification() {
 }
 
 export default function OwnerDashboard() {
+  const { user } = useAuth()
   const { showToast } = useToast()
+  const isRider = user?.role === 'rider'
+  
   const [tab, setTab] = useState('orders')
   const [restaurant, setRestaurant] = useState(null)
   const [orders, setOrders] = useState([])
+  const [myDeliveries, setMyDeliveries] = useState([])
   const [menuItems, setMenuItems] = useState([])
   const [riders, setRiders] = useState([])
   const [selectedRiderId, setSelectedRiderId] = useState('')
@@ -38,32 +43,45 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true)
   const [settingsForm, setSettingsForm] = useState({})
   const [editingSettings, setEditingSettings] = useState(false)
+  const [confirmAction, setConfirmAction] = useState(null)
 
   const [newItem, setNewItem] = useState({ name: '', category: '', subCategory: '', price: '', desc: '', image: '' })
   const [editingItem, setEditingItem] = useState(null)
-  const [confirmAction, setConfirmAction] = useState(null)
 
   const orderCountRef = useRef(0)
 
   const fetchData = useCallback(async () => {
     try {
-      const [r, o, m, riderList] = await Promise.all([
-        api.get('/owner/restaurant'),
-        api.get('/owner/orders'),
-        api.get('/owner/menu'),
-        api.get('/owner/riders'),
-      ])
-      setRestaurant(r.data)
-      setOrders(o.data)
-      setMenuItems(m.data)
-      setRiders(riderList.data)
-      if (o.data.length > orderCountRef.current) {
-        playNotification()
+      if (isRider) {
+        // Rider view: fetch assigned deliveries
+        const [myDelivs, earningsData] = await Promise.all([
+          api.get('/rider/my-deliveries'),
+          getRiderEarnings(),
+        ])
+        setMyDeliveries(myDelivs.data)
+        setEarnings(earningsData)
+      } else {
+        // Owner view: fetch restaurant, orders, menu, riders
+        const [r, o, m, riderList] = await Promise.all([
+          api.get('/owner/restaurant'),
+          api.get('/owner/orders'),
+          api.get('/owner/menu'),
+          api.get('/owner/riders'),
+        ])
+        setRestaurant(r.data)
+        setOrders(o.data)
+        setMenuItems(m.data)
+        setRiders(riderList.data)
+        if (o.data.length > orderCountRef.current) {
+          playNotification()
+        }
+        orderCountRef.current = o.data.length
       }
-      orderCountRef.current = o.data.length
-    } catch { }
+    } catch (err) {
+      console.error('Failed to fetch data:', err)
+    }
     setLoading(false)
-  }, [])
+  }, [isRider])
 
   useEffect(() => {
     fetchData()
@@ -81,6 +99,17 @@ export default function OwnerDashboard() {
   useEffect(() => {
     if (tab === 'earnings') fetchEarnings()
   }, [tab, fetchEarnings])
+
+  const handleRiderOrderStatus = async (orderId, status) => {
+    try {
+      await api.patch(`/rider/orders/${orderId}/status`, { status })
+      showToast(`Order #${orderId} marked as ${status}`, 'success')
+      setConfirmAction(null)
+      fetchData()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to update delivery', 'error')
+    }
+  }
 
   useEffect(() => {
     if (restaurant) {
@@ -229,9 +258,9 @@ export default function OwnerDashboard() {
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">{restaurant?.name || 'Owner Dashboard'}</h1>
+        <h1 className="text-2xl font-bold">{isRider ? 'My Deliveries' : restaurant?.name || 'Owner Dashboard'}</h1>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          {['orders', 'menu', 'settings', 'earnings'].map(t => (
+          {(isRider ? ['deliveries', 'earnings'] : ['orders', 'menu', 'settings', 'earnings']).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded text-sm font-medium capitalize ${tab === t ? 'bg-white shadow text-orange-600' : 'text-gray-600'}`}>
               {t}
@@ -240,7 +269,86 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
-      {tab === 'orders' && (
+      {tab === 'deliveries' && isRider && (
+        <div>
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="border rounded-lg p-4 bg-white">
+              <p className="text-xs text-gray-500 uppercase tracking-wide">In Progress</p>
+              <p className="text-2xl font-bold text-blue-600">{myDeliveries.filter(d => ['Ready for Pickup', 'Out for Delivery'].includes(d.status)).length}</p>
+            </div>
+            <div className="border rounded-lg p-4 bg-white">
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Delivered</p>
+              <p className="text-2xl font-bold text-green-600">{myDeliveries.filter(d => d.status === 'Delivered').length}</p>
+            </div>
+          </div>
+
+          <h2 className="font-semibold text-lg mb-3">Active Deliveries</h2>
+          {myDeliveries.filter(d => ['Ready for Pickup', 'Out for Delivery'].includes(d.status)).length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No active deliveries</p>
+          ) : (
+            myDeliveries.filter(d => ['Ready for Pickup', 'Out for Delivery'].includes(d.status)).map(order => (
+              <div key={order.id} className="border rounded-lg p-4 mb-3 bg-white">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      {order.restaurant?.image && (
+                        <img src={order.restaurant.image} alt={order.restaurant.name} className="w-10 h-10 rounded-lg object-cover" />
+                      )}
+                      <div>
+                        <p className="text-sm font-semibold">{order.restaurant?.name}</p>
+                        <p className="text-xs text-gray-500">Order #{order.id}</p>
+                      </div>
+                    </div>
+                    {(order.items || []).map(item => (
+                      <p key={item.id || item.menuItemId} className="text-sm text-gray-600">{item.name || item.menuItem?.name} x{item.qty || item.quantity}</p>
+                    ))}
+                    <p className="font-bold mt-2 text-orange-600">{formatPrice(order.total)}</p>
+                    <p className="text-xs text-gray-500 mt-1">📍 {order.address}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`px-2 py-1 rounded text-xs font-medium block mb-2 ${
+                      order.status === 'Out for Delivery' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {order.status}
+                    </span>
+                    {order.status === 'Ready for Pickup' && (
+                      <button onClick={() => handleRiderOrderStatus(order.id, 'Out for Delivery')}
+                        className="bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-blue-600 block w-full mb-1">
+                        Start Delivery
+                      </button>
+                    )}
+                    {order.status === 'Out for Delivery' && (
+                      <button onClick={() => setConfirmAction({ type: 'riderDeliver', orderId: order.id, orderNum: order.id })}
+                        className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-green-700 block w-full">
+                        Mark Delivered
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+
+          {myDeliveries.filter(d => d.status === 'Delivered').length > 0 && (
+            <>
+              <h2 className="font-semibold text-lg mb-3 mt-6">Delivered</h2>
+              {myDeliveries.filter(d => d.status === 'Delivered').map(order => (
+                <div key={order.id} className="border rounded-lg p-3 mb-2 bg-gray-50 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    {order.restaurant?.image && (
+                      <img src={order.restaurant.image} alt={order.restaurant.name} className="w-8 h-8 rounded object-cover" />
+                    )}
+                    <p className="text-sm text-gray-600">Order #{order.id} — {order.restaurant?.name} — {formatPrice(order.total)}</p>
+                  </div>
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">✓ Delivered</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'orders' && !isRider && (
         <div>
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="border rounded-lg p-4 bg-white">
@@ -293,15 +401,20 @@ export default function OwnerDashboard() {
                 return (
                   <div key={order.id} className="border rounded-lg p-4 mb-3 bg-white">
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm text-gray-500">Order #{order.id}</p>
                         {orderLines(order)}
                         <p className="font-bold mt-1 text-orange-600">{formatPrice(order.total)}</p>
-                        <p className="text-xs text-gray-400">{order.address}</p>
+                        <p className="text-xs text-gray-400">📍 {order.address}</p>
+                        {order.delivery?.riderId && (
+                          <p className="text-xs text-blue-600 mt-1">🚴 Rider: {getAssignedRiderName(order)}</p>
+                        )}
                       </div>
                       <div className="text-right">
                         <span className={`px-2 py-1 rounded text-xs font-medium block mb-2 ${
-                          order.status === 'Out for Delivery' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                          order.status === 'Out for Delivery' ? 'bg-orange-100 text-orange-700' : 
+                          order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                          'bg-blue-100 text-blue-700'
                         }`}>
                           {order.status}
                         </span>
@@ -365,7 +478,7 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      {tab === 'menu' && (
+      {tab === 'menu' && !isRider && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <h2 className="font-semibold text-lg mb-3">Menu Items</h2>
@@ -467,7 +580,7 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      {tab === 'settings' && !editingSettings && (
+      {tab === 'settings' && !editingSettings && !isRider && (
         <div className="border rounded-lg p-4 bg-white">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-semibold text-lg">Restaurant Details</h2>
@@ -484,7 +597,7 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      {tab === 'settings' && editingSettings && restaurant && (
+      {tab === 'settings' && editingSettings && restaurant && !isRider && (
         <form onSubmit={saveSettings} className="border rounded-lg p-4 bg-white">
           <h2 className="font-semibold text-lg mb-4">Edit Restaurant</h2>
           <div className="grid grid-cols-2 gap-3">
@@ -604,6 +717,18 @@ export default function OwnerDashboard() {
                     className="border px-3 py-1.5 rounded text-sm">Cancel</button>
                   <button onClick={() => deleteMenuItem(confirmAction.itemId)}
                     className="bg-red-500 text-white px-4 py-1.5 rounded text-sm">Delete</button>
+                </div>
+              </>
+            )}
+            {confirmAction.type === 'riderDeliver' && (
+              <>
+                <p className="font-semibold mb-2">Mark Order #{confirmAction.orderNum} as Delivered?</p>
+                <p className="text-sm text-gray-500 mb-4">This will complete the delivery and notify the customer.</p>
+                <div className="flex gap-3 justify-end">
+                  <button onClick={() => setConfirmAction(null)}
+                    className="border px-3 py-1.5 rounded text-sm">Cancel</button>
+                  <button onClick={() => handleRiderOrderStatus(confirmAction.orderId, 'Delivered')}
+                    className="bg-green-600 text-white px-4 py-1.5 rounded text-sm">Confirm Delivery</button>
                 </div>
               </>
             )}
