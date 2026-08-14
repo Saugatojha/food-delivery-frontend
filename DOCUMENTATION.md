@@ -100,10 +100,12 @@ A `SECURITY_CHECKLIST.md` is maintained at the project root covering 4 areas (se
 ### Security Enhancements
 
 **Helmet.js Configuration:**
+
 - **Content Security Policy (CSP):** Restricts script/style execution to same-origin or trusted sources; allows OpenStreetMap tile requests and Resend email service.
 - **HSTS Preload:** Enforces HTTPS with a 1-year max age and subdomain inclusion.
 
 **Input Validation & Sanitization (`server/src/middleware/validate.js`):**
+
 - **XSS Prevention:** `sanitizeString()` removes `<>`, `javascript:`, and event handlers from user input.
 - **Password Strength:** Requires minimum 8 characters with uppercase, lowercase, digit, and special character.
 - **Field Validation:** Email regex, name length limits (100 chars), text/description length caps.
