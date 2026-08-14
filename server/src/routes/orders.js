@@ -48,7 +48,7 @@ router.post('/', authenticate, validate('address'), async (req, res) => {
     notifyRestaurantOwner(
       order,
       'New order received',
-      `New order #${order.id} for NPR ${order.total.toFixed(2)} â€” check your dashboard.`,
+      `New order #${order.id} for NPR ${order.total.toFixed(2)} — check your dashboard.`,
       'order',
     )
   } catch (err) {

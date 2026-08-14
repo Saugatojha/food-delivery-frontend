@@ -30,8 +30,10 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
-  const verifyEmail = useCallback(async (token) => {
-    const { data } = await api.get(`/auth/verify-email?token=${encodeURIComponent(token)}`)
+  const verifyEmail = useCallback(async (token, email) => {
+    const { data } = await api.get(
+      `/auth/verify-email?token=${encodeURIComponent(token)}${email ? `&email=${encodeURIComponent(email)}` : ''}`
+    )
     return data
   }, [])
 

@@ -2,6 +2,8 @@ const { badRequest } = require('../utils/errors')
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const NAME_MAX_LENGTH = 100
+const TEXT_MAX_LENGTH = 500
+const DESCRIPTION_MAX_LENGTH = 2000
 
 const PASSWORD_RULES = {
   minLength: 8,
@@ -12,6 +14,18 @@ const PASSWORD_RULES = {
 }
 
 const PASSWORD_HINT = 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+
+// Sanitize string input to prevent XSS
+function sanitizeString(input, maxLength = TEXT_MAX_LENGTH) {
+  if (typeof input !== 'string') return ''
+  const trimmed = input.trim()
+  if (trimmed.length > maxLength) return trimmed.substring(0, maxLength)
+  // Remove potentially dangerous characters while allowing basic text
+  return trimmed
+    .replace(/[<>]/g, '') // Remove < and > to prevent HTML injection
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+=/gi, '') // Remove event handlers like onclick=
+}
 
 function validatePassword(password) {
   if (typeof password !== 'string' || password.length < PASSWORD_RULES.minLength) return false
@@ -34,6 +48,16 @@ function validate(...fields) {
     if (fields.includes('name') && req.body.name.trim().length > NAME_MAX_LENGTH) {
       return badRequest(res, `Name must be under ${NAME_MAX_LENGTH} characters`)
     }
+    // Sanitize text fields
+    if (fields.includes('address') && req.body.address) {
+      req.body.address = sanitizeString(req.body.address, TEXT_MAX_LENGTH)
+    }
+    if (fields.includes('description') && req.body.description) {
+      req.body.description = sanitizeString(req.body.description, DESCRIPTION_MAX_LENGTH)
+    }
+    if (fields.includes('cuisine') && req.body.cuisine) {
+      req.body.cuisine = sanitizeString(req.body.cuisine, 100)
+    }
     next()
   }
 }
@@ -54,8 +78,15 @@ function validateOptional(...fields) {
     if (invalid.length > 0) {
       return badRequest(res, `Invalid empty values for: ${invalid.join(', ')}`)
     }
+    // Sanitize optional text fields
+    if (fields.includes('address') && req.body.address) {
+      req.body.address = sanitizeString(req.body.address, TEXT_MAX_LENGTH)
+    }
+    if (fields.includes('description') && req.body.description) {
+      req.body.description = sanitizeString(req.body.description, DESCRIPTION_MAX_LENGTH)
+    }
     next()
   }
 }
 
-module.exports = { validate, validateOptional, validatePassword, validatePasswordStrength, PASSWORD_HINT }
+module.exports = { validate, validateOptional, validatePassword, validatePasswordStrength, PASSWORD_HINT, sanitizeString }

@@ -4,11 +4,11 @@ export default function AuthShell({ title, subtitle, children }) {
   return (
     <div className="relative min-h-[calc(100vh-56px)] overflow-hidden">
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-25"
+        className="absolute inset-0 bg-cover bg-center opacity-50"
         style={{ backgroundImage: `url(${AUTH_BG})` }}
         aria-hidden="true"
       />
-      <div className="absolute inset-0 bg-white/75" aria-hidden="true" />
+      <div className="absolute inset-0 bg-white/45" aria-hidden="true" />
       <div className="relative mx-auto flex min-h-[calc(100vh-56px)] max-w-6xl items-center justify-center p-4 sm:p-6">
         <div className="grid w-full max-w-5xl overflow-hidden rounded-lg border bg-white/90 shadow-xl backdrop-blur md:grid-cols-[0.9fr_1.1fr]">
           <div className="hidden bg-orange-600/90 p-8 text-white md:flex md:flex-col md:justify-between">

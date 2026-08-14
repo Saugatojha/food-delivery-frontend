@@ -221,7 +221,7 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
     res.json(updated)
 
     if (status === 'Confirmed') {
-      notifyCustomer(order, 'Order accepted', `Great news â€” order #${order.id} has been accepted by the restaurant.`)
+      notifyCustomer(order, 'Order accepted', `Great news — order #${order.id} has been accepted by the restaurant.`)
     } else if (status === 'Rejected') {
       notifyCustomer(order, 'Order declined', `Sorry, order #${order.id} was declined by the restaurant.`)
     }

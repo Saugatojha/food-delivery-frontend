@@ -335,7 +335,7 @@ export default function OwnerDashboard() {
               <h2 className="font-semibold text-lg mb-3 mt-6">Completed Orders</h2>
               {completedOrders.map(order => (
                 <div key={order.id} className="border rounded-lg p-3 mb-2 bg-gray-50">
-                  <p className="text-sm text-gray-500">Order #{order.id} â€” {formatPrice(order.total)} â€” Delivered</p>
+                  <p className="text-sm text-gray-500">Order #{order.id} — {formatPrice(order.total)} — Delivered</p>
                 </div>
               ))}
             </>
@@ -346,7 +346,7 @@ export default function OwnerDashboard() {
               <h2 className="font-semibold text-lg mb-3 mt-6">Declined</h2>
               {declinedOrders.map(order => (
                 <div key={order.id} className="border rounded-lg p-3 mb-2 bg-gray-50">
-                  <p className="text-sm text-gray-500">Order #{order.id} â€” {formatPrice(order.total)}</p>
+                  <p className="text-sm text-gray-500">Order #{order.id} — {formatPrice(order.total)}</p>
                 </div>
               ))}
             </>

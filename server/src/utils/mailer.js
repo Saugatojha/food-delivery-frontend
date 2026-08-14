@@ -3,9 +3,9 @@ const logger = require('../config/logger')
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
-function verificationUrl(token) {
-  const origin = process.env.APP_URL || 'http://localhost:5001'
-  return `${origin}/api/auth/verify-email?token=${token}`
+function verificationUrl(token, email) {
+  const origin = process.env.FRONTEND_URL || 'http://localhost:5173'
+  return `${origin}/verify-email?token=${encodeURIComponent(token)}${email ? `&email=${encodeURIComponent(email)}` : ''}`
 }
 
 function passwordResetUrl(token, email) {
@@ -41,7 +41,7 @@ async function sendPasswordResetEmail(user, token) {
 }
 
 async function sendVerificationEmail(user, token) {
-  const link = verificationUrl(token)
+  const link = verificationUrl(token, user.email)
   if (process.env.NODE_ENV !== 'production') {
     logger.info(`[DEV EMAIL] To: ${user.email} — Verify your account: ${link}`)
     return { devLink: link }

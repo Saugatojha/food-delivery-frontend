@@ -6,22 +6,24 @@ SmartServe is a food ordering platform with four user roles: **Customer**, **Res
 
 ### Tech Stack
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| Frontend | React 19 | UI components |
-| Build tool | Vite 8 | Dev server + bundler |
-| Styling | Tailwind CSS 4 | Utility-first CSS |
-| Routing | React Router DOM 7 | Client-side navigation |
-| HTTP | Axios | API calls to backend |
-| Maps | Leaflet + react-leaflet | Free map tiles via OpenStreetMap |
-| Lint | ESLint | React hooks + react-refresh rules |
-| Test (FE) | Vitest + Testing Library | Unit tests for utils, mock data, routes |
-| E2E (FE) | Playwright | Browser-level login flow tests (setup only) |
-| Backend | Express 5 | REST API server |
-| ORM | Prisma 7 | Database schema + migrations |
-| Database | MySQL 8 | Relational DB (via Prisma `@prisma/adapter-mariadb` driver) |
-| Auth | bcrypt + JWT | Password hashing + token auth |
-| Test (BE) | Vitest | Backend route tests |
+| Layer            | Technology               | Purpose                                                     |
+| ---------------- | ------------------------ | ----------------------------------------------------------- |
+| Frontend         | React 19                 | UI components                                               |
+| Build tool       | Vite 8                   | Dev server + bundler                                        |
+| Styling          | Tailwind CSS 4           | Utility-first CSS                                           |
+| Routing          | React Router DOM 7       | Client-side navigation                                      |
+| HTTP             | Axios                    | API calls to backend                                        |
+| Maps             | Leaflet + react-leaflet  | Free map tiles via OpenStreetMap                            |
+| Lint             | ESLint                   | React hooks + react-refresh rules                           |
+| Test (FE)        | Vitest + Testing Library | Unit tests for utils, mock data, routes                     |
+| E2E (FE)         | Playwright               | Browser-level login flow tests (setup only)                 |
+| Backend          | Express 5                | REST API server                                             |
+| ORM              | Prisma 7                 | Database schema + migrations                                |
+| Database         | MySQL 8                  | Relational DB (via Prisma `@prisma/adapter-mariadb` driver) |
+| Auth             | bcrypt + JWT             | Password hashing + token auth                               |
+| Security         | Helmet                   | CSP headers + HSTS preload                                  |
+| Input Validation | Custom sanitization      | XSS prevention + password strength                          |
+| Test (BE)        | Vitest                   | Backend route tests                                         |
 
 ---
 
@@ -63,7 +65,9 @@ server/ (port 5001)
     │                            allowPublicKeyRetrieval set for MySQL 8 caching_sha2_password over TCP
     ├── middleware/
     │   ├── auth.js              authenticate (JWT verify) + authorize (role check)
-    │   └── validate.js          validate() / validateOptional() field checkers
+    │   ├── csrf.js              CSRF token validation for state-changing requests
+    │   └── validate.js          validate() / validateOptional() field checkers; sanitizeString() XSS prevention;
+    │                            Password validation (8+ chars, upper, lower, digit, special); email/name/length validation
     ├── routes/
     │   ├── auth.js              POST /register (email normalized, unverified), POST /login (403 EMAIL_NOT_VERIFIED until verified), GET /verify-email, POST /resend-verification, POST /forgot-password, POST /reset-password, GET /me
     │   ├── restaurants.js       GET /, GET /:id/menu
@@ -93,6 +97,18 @@ server/ (port 5001)
 
 A `SECURITY_CHECKLIST.md` is maintained at the project root covering 4 areas (security, functional, performance, accessibility) with recommended fixes for each item.
 
+### Security Enhancements
+
+**Helmet.js Configuration:**
+- **Content Security Policy (CSP):** Restricts script/style execution to same-origin or trusted sources; allows OpenStreetMap tile requests and Resend email service.
+- **HSTS Preload:** Enforces HTTPS with a 1-year max age and subdomain inclusion.
+
+**Input Validation & Sanitization (`server/src/middleware/validate.js`):**
+- **XSS Prevention:** `sanitizeString()` removes `<>`, `javascript:`, and event handlers from user input.
+- **Password Strength:** Requires minimum 8 characters with uppercase, lowercase, digit, and special character.
+- **Field Validation:** Email regex, name length limits (100 chars), text/description length caps.
+- **Email Verification:** Users cannot log in until email is verified; tokens expire in 1 hour.
+
 ### Route Guards
 
 - **ProtectedRoute** — redirects to `/login` if no user in context. Saves intended path.
@@ -101,6 +117,7 @@ A `SECURITY_CHECKLIST.md` is maintained at the project root covering 4 areas (se
 ### Post-Login Redirect
 
 After successful login, users are redirected by role:
+
 - **Rider** → `/owner` (shared owner/orders dashboard with rider assignment)
 - **Owner** → `/owner` (restaurant dashboard)
 - **Admin** → `/admin` (restaurant management)
@@ -208,20 +225,25 @@ server/
 11 models: User, Restaurant, MenuItem, Order, OrderItem, Payment, Delivery, Rating, Notification, PasswordResetToken.
 
 Key coordinate fields (for map feature):
+
 - `Restaurant.latitude` / `Restaurant.longitude`
 - `Order.deliveryLatitude` / `Order.deliveryLongitude`
 - `Delivery.riderLatitude` / `Delivery.riderLongitude` / `Delivery.locationUpdatedAt`
 
 Key contact field:
+
 - `Order.phone` — Customer phone number for delivery contact
 
 Email verification fields:
+
 - `User.emailVerified` / `User.verificationToken` / `User.verificationExpires`
 
 Password reset fields:
+
 - `PasswordResetToken.token` (SHA-256 hash, unique) / `userId` / `expiresAt` (30 min) / `usedAt` (single-use) / `createdAt`
 
 Notification fields:
+
 - `Notification.userId` / `title` / `message` / `type` / `orderId` / `read` / `createdAt`
 
 ---
@@ -230,26 +252,26 @@ Notification fields:
 
 **Users (all passwords: `password`):**
 
-| Name | Email | Role | Notes |
-|---|---|---|---|
-| John Doe | john@test.com | customer | Default customer (emailVerified) |
-| Pizza Palace | owner@test.com | owner | Linked to restaurant ID 1 (emailVerified) |
-| Rider Ram | rider@test.com | rider | Can update delivery status (emailVerified) |
-| Admin User | admin@test.com | admin | Full system overview (emailVerified) |
+| Name         | Email          | Role     | Notes                                      |
+| ------------ | -------------- | -------- | ------------------------------------------ |
+| John Doe     | john@test.com  | customer | Default customer (emailVerified)           |
+| Pizza Palace | owner@test.com | owner    | Linked to restaurant ID 1 (emailVerified)  |
+| Rider Ram    | rider@test.com | rider    | Can update delivery status (emailVerified) |
+| Admin User   | admin@test.com | admin    | Full system overview (emailVerified)       |
 
 > All seed users are created with `emailVerified: true`, so demo logins work without verification. New registrations require email verification before login (dev mailer prints the link to the server console).
 
 **Restaurants:** 7 restaurants with Kathmandu-area coordinates, each with categorized menu items at realistic NPR prices. Taco Town (ID 4) is `isOpen: false`. Each has a placeholder image via `placehold.co`.
 
-| Restaurant | Cuisine | Location (lat, lng) | Items | Image |
-|---|---|---|---|---|
-| Pizza Palace | Italian | 27.7150, 85.3120 (Thamel) | Pizza x2, Appetizer | ✅ |
-| Burger Barn | American | 27.7040, 85.3070 (Durbar Square) | Burger x2, Fries | ✅ |
-| Sushi Spot | Japanese | 27.6710, 85.3260 (Patan) | Sushi x2, Appetizer | ✅ |
-| Taco Town | Mexican | 27.7210, 85.3620 (Boudhanath) | Taco, Quesadilla, Appetizer | ✅ |
-| Curry House | Indian | 27.7100, 85.3480 (Pashupatinath) | Curry, Bread, Rice | ✅ |
-| Noodle Nest | Chinese | 27.6720, 85.4280 (Bhaktapur) | Noodle, Rice, Appetizer | ✅ |
-| Momo House | Nepali | 27.7180, 85.3350 (Thamel) | Momo x3, Rice, Noodle, Appetizer, Beverage x2 | ✅ |
+| Restaurant   | Cuisine  | Location (lat, lng)              | Items                                         | Image |
+| ------------ | -------- | -------------------------------- | --------------------------------------------- | ----- |
+| Pizza Palace | Italian  | 27.7150, 85.3120 (Thamel)        | Pizza x2, Appetizer                           | ✅    |
+| Burger Barn  | American | 27.7040, 85.3070 (Durbar Square) | Burger x2, Fries                              | ✅    |
+| Sushi Spot   | Japanese | 27.6710, 85.3260 (Patan)         | Sushi x2, Appetizer                           | ✅    |
+| Taco Town    | Mexican  | 27.7210, 85.3620 (Boudhanath)    | Taco, Quesadilla, Appetizer                   | ✅    |
+| Curry House  | Indian   | 27.7100, 85.3480 (Pashupatinath) | Curry, Bread, Rice                            | ✅    |
+| Noodle Nest  | Chinese  | 27.6720, 85.4280 (Bhaktapur)     | Noodle, Rice, Appetizer                       | ✅    |
+| Momo House   | Nepali   | 27.7180, 85.3350 (Thamel)        | Momo x3, Rice, Noodle, Appetizer, Beverage x2 | ✅    |
 
 ---
 
@@ -257,11 +279,11 @@ Notification fields:
 
 Roles progress through these statuses (one step at a time):
 
-| Role | Flow |
-|---|---|
-| Customer | Pending → Confirmed → Preparing → Out for Delivery → Delivered |
-| Owner | Pending → Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered (Rejected allowed from Pending) |
-| Rider | Pending → Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered |
+| Role     | Flow                                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------------------------- |
+| Customer | Pending → Confirmed → Preparing → Out for Delivery → Delivered                                                    |
+| Owner    | Pending → Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered (Rejected allowed from Pending) |
+| Rider    | Pending → Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered                                 |
 
 Terminal statuses (cannot transition out): Delivered, Cancelled, Rejected.
 
@@ -275,106 +297,107 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 
 ### Auth
 
-| Method | Endpoint | Body | Response |
-|---|---|---|---|
-| POST | `/api/auth/register` | `{ name, email, password }` | `201 { message, user: { emailVerified: false }, devLink? }` (no token — must verify email) |
-| POST | `/api/auth/login` | `{ login, password }` | `{ token, user }` or `403 { code: 'EMAIL_NOT_VERIFIED', email }` |
-| GET | `/api/auth/verify-email?token=` | — | `{ message }` (marks email verified) |
-| POST | `/api/auth/resend-verification` | `{ login }` | `{ message, devLink? }` |
-| POST | `/api/auth/forgot-password` | `{ login }` | `{ message, devLink? }` (generic message — no email enumeration) |
-| POST | `/api/auth/reset-password` | `{ token, password }` | `{ message }` (single-use, 30-min expiry, resets lockout) |
-| GET | `/api/auth/me` | — | `{ user }` |
+| Method | Endpoint                        | Body                        | Response                                                                                   |
+| ------ | ------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------ |
+| POST   | `/api/auth/register`            | `{ name, email, password }` | `201 { message, user: { emailVerified: false }, devLink? }` (no token — must verify email) |
+| POST   | `/api/auth/login`               | `{ login, password }`       | `{ token, user }` or `403 { code: 'EMAIL_NOT_VERIFIED', email }`                           |
+| GET    | `/api/auth/verify-email?token=` | —                           | `{ message }` (marks email verified)                                                       |
+| POST   | `/api/auth/resend-verification` | `{ login }`                 | `{ message, devLink? }`                                                                    |
+| POST   | `/api/auth/forgot-password`     | `{ login }`                 | `{ message, devLink? }` (generic message — no email enumeration)                           |
+| POST   | `/api/auth/reset-password`      | `{ token, password }`       | `{ message }` (single-use, 30-min expiry, resets lockout)                                  |
+| GET    | `/api/auth/me`                  | —                           | `{ user }`                                                                                 |
 
 Emails are normalized (trimmed + lowercased) on register and login. New users must verify their email before the first login. In dev (`NODE_ENV !== 'production'`), `mailer.js` prints the verification URL to the server console instead of sending real email; the frontend also surfaces it as a `devLink`.
 
 ### Restaurants
 
-| Method | Endpoint | Response |
-|---|---|---|
-| GET | `/api/restaurants` | `[ Restaurant ]` |
-| GET | `/api/restaurants/:id/menu` | `{ restaurant, items }` |
+| Method | Endpoint                    | Response                |
+| ------ | --------------------------- | ----------------------- |
+| GET    | `/api/restaurants`          | `[ Restaurant ]`        |
+| GET    | `/api/restaurants/:id/menu` | `{ restaurant, items }` |
 
 ### Orders
 
-| Method | Endpoint | Body | Response |
-|---|---|---|---|
-| POST | `/api/orders` | `{ items: [{ menuItemId, restaurantId, quantity }], address, phone?, paymentMethod, deliveryLatitude?, deliveryLongitude? }` | `Order` (owner gets a "New order received" notification) |
-| GET | `/api/orders` | — | `[ Order ]` |
-| GET | `/api/orders/tracking/:id` | — | `Order` with restaurant/delivery coords |
-| PATCH | `/api/orders/:id/status` | `{ status }` | `Order` (owner/rider/admin only; owner must own the restaurant, rider must be assigned) |
+| Method | Endpoint                   | Body                                                                                                                         | Response                                                                                |
+| ------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| POST   | `/api/orders`              | `{ items: [{ menuItemId, restaurantId, quantity }], address, phone?, paymentMethod, deliveryLatitude?, deliveryLongitude? }` | `Order` (owner gets a "New order received" notification)                                |
+| GET    | `/api/orders`              | —                                                                                                                            | `[ Order ]`                                                                             |
+| GET    | `/api/orders/tracking/:id` | —                                                                                                                            | `Order` with restaurant/delivery coords                                                 |
+| PATCH  | `/api/orders/:id/status`   | `{ status }`                                                                                                                 | `Order` (owner/rider/admin only; owner must own the restaurant, rider must be assigned) |
 
 ### Cart
 
-| Method | Endpoint | Body | Response |
-|---|---|---|---|
-| GET | `/api/cart` | — | `[ CartItem ]` (with `menuItem`) |
-| POST | `/api/cart/sync` | `{ items: [{ menuItemId, restaurantId, quantity }] }` | `[ CartItem ]` — validates every item exists and belongs to the given restaurant, clamps quantity to 1–99, then replaces the user's cart |
-| POST | `/api/cart/add` | `{ menuItemId, restaurantId, quantity }` | `CartItem` — validates item + restaurant, adds or upserts quantity (capped at 99) |
-| DELETE | `/api/cart/:id` | — | `{ message }` |
+| Method | Endpoint         | Body                                                  | Response                                                                                                                                 |
+| ------ | ---------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/cart`      | —                                                     | `[ CartItem ]` (with `menuItem`)                                                                                                         |
+| POST   | `/api/cart/sync` | `{ items: [{ menuItemId, restaurantId, quantity }] }` | `[ CartItem ]` — validates every item exists and belongs to the given restaurant, clamps quantity to 1–99, then replaces the user's cart |
+| POST   | `/api/cart/add`  | `{ menuItemId, restaurantId, quantity }`              | `CartItem` — validates item + restaurant, adds or upserts quantity (capped at 99)                                                        |
+| DELETE | `/api/cart/:id`  | —                                                     | `{ message }`                                                                                                                            |
 
 The cart UX is still client-side (localStorage); the `/api/cart` endpoints are available for server-side sync but are not yet wired into the frontend.
 
 ### Notifications
 
-| Method | Endpoint | Response |
-|---|---|---|
-| GET | `/api/notifications` | `[ Notification ]` (latest 50) |
-| GET | `/api/notifications/unread-count` | `{ count }` |
-| PATCH | `/api/notifications/:id/read` | `Notification` |
-| POST | `/api/notifications/read-all` | `{ message }` |
+| Method | Endpoint                          | Response                       |
+| ------ | --------------------------------- | ------------------------------ |
+| GET    | `/api/notifications`              | `[ Notification ]` (latest 50) |
+| GET    | `/api/notifications/unread-count` | `{ count }`                    |
+| PATCH  | `/api/notifications/:id/read`     | `Notification`                 |
+| POST   | `/api/notifications/read-all`     | `{ message }`                  |
 
 Notifications are created for: new order (owner), order Confirmed/Rejected (customer), Out for Delivery/Delivered (customer).
 
 ### Upload
 
-| Method | Endpoint | Body | Response |
-|---|---|---|---|
-| POST | `/api/upload/image` | multipart `image` (max 5MB, jpeg/png/gif/webp) | `{ url }` |
+| Method | Endpoint            | Body                                           | Response  |
+| ------ | ------------------- | ---------------------------------------------- | --------- |
+| POST   | `/api/upload/image` | multipart `image` (max 5MB, jpeg/png/gif/webp) | `{ url }` |
 
 Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The returned URL is relative (`/uploads/<file>`); the Vite dev proxy forwards `/uploads` to the backend.
 
 ### Owner
 
-| Method | Endpoint | Body | Response |
-|---|---|---|---|
-| GET | `/api/owner/restaurant` | — | `Restaurant` |
-| PATCH | `/api/owner/restaurant` | restaurant fields | `Restaurant` |
-| GET | `/api/owner/orders` | — | `[ Order ]` |
-| PATCH | `/api/owner/orders/:id/status` | `{ status, riderId? }` | `Order` — `riderId` is **required** to confirm (`Pending → Confirmed`) |
-| PATCH | `/api/owner/orders/:id/rider` | `{ riderId }` | `Order` — (re)assign a rider to a non-terminal order |
-| GET | `/api/owner/riders` | — | `[ { id, name, email } ]` — rider accounts for assignment |
-| GET | `/api/owner/menu` | — | `[ MenuItem ]` |
-| POST | `/api/owner/menu` | `{ name, price, category?, desc?, image? }` | `MenuItem` |
-| PATCH | `/api/owner/menu/:id` | `{ name?, price?, category?, desc?, image? }` | `MenuItem` |
-| DELETE | `/api/owner/menu/:id` | — | `{ message }` |
+| Method | Endpoint                       | Body                                          | Response                                                               |
+| ------ | ------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------- |
+| GET    | `/api/owner/restaurant`        | —                                             | `Restaurant`                                                           |
+| PATCH  | `/api/owner/restaurant`        | restaurant fields                             | `Restaurant`                                                           |
+| GET    | `/api/owner/orders`            | —                                             | `[ Order ]`                                                            |
+| PATCH  | `/api/owner/orders/:id/status` | `{ status, riderId? }`                        | `Order` — `riderId` is **required** to confirm (`Pending → Confirmed`) |
+| PATCH  | `/api/owner/orders/:id/rider`  | `{ riderId }`                                 | `Order` — (re)assign a rider to a non-terminal order                   |
+| GET    | `/api/owner/riders`            | —                                             | `[ { id, name, email } ]` — rider accounts for assignment              |
+| GET    | `/api/owner/menu`              | —                                             | `[ MenuItem ]`                                                         |
+| POST   | `/api/owner/menu`              | `{ name, price, category?, desc?, image? }`   | `MenuItem`                                                             |
+| PATCH  | `/api/owner/menu/:id`          | `{ name?, price?, category?, desc?, image? }` | `MenuItem`                                                             |
+| DELETE | `/api/owner/menu/:id`          | —                                             | `{ message }`                                                          |
 
 ### Rider
 
-| Method | Endpoint | Body | Response |
-|---|---|---|---|
-| GET | `/api/rider/deliveries` | — | `[ Order ]` (available for pickup) |
-| GET | `/api/rider/my-deliveries` | — | `[ Order ]` (rider's accepted deliveries) |
-| GET | `/api/rider/earnings` | — | `{ totalEarnings, totalDeliveries, dailyEarnings, dailyCount, weeklyEarnings, weeklyCount }` |
-| PATCH | `/api/rider/orders/:id/accept` | — | `Order` (assigns rider, status→Out for Delivery) |
-| PATCH | `/api/rider/orders/:id/reject` | — | `{ message }` (returns to pending) |
-| PATCH | `/api/rider/orders/:id/status` | `{ status }` | `Order` |
-| PATCH | `/api/rider/location` | `{ latitude, longitude }` | `Delivery` |
+| Method | Endpoint                       | Body                      | Response                                                                                     |
+| ------ | ------------------------------ | ------------------------- | -------------------------------------------------------------------------------------------- |
+| GET    | `/api/rider/deliveries`        | —                         | `[ Order ]` (available for pickup)                                                           |
+| GET    | `/api/rider/my-deliveries`     | —                         | `[ Order ]` (rider's accepted deliveries)                                                    |
+| GET    | `/api/rider/earnings`          | —                         | `{ totalEarnings, totalDeliveries, dailyEarnings, dailyCount, weeklyEarnings, weeklyCount }` |
+| PATCH  | `/api/rider/orders/:id/accept` | —                         | `Order` (assigns rider, status→Out for Delivery)                                             |
+| PATCH  | `/api/rider/orders/:id/reject` | —                         | `{ message }` (returns to pending)                                                           |
+| PATCH  | `/api/rider/orders/:id/status` | `{ status }`              | `Order`                                                                                      |
+| PATCH  | `/api/rider/location`          | `{ latitude, longitude }` | `Delivery`                                                                                   |
 
 ### Admin
 
-| Method | Endpoint | Body | Response |
-|---|---|---|---|
-| GET | `/api/admin/users` | — | `[ User ]` |
-| GET | `/api/admin/restaurants` | — | `[ Restaurant ]` |
-| POST | `/api/admin/restaurants` | restaurant fields | `Restaurant` |
-| PATCH | `/api/admin/restaurants/:id` | restaurant fields | `Restaurant` |
-| DELETE | `/api/admin/restaurants/:id` | — | `{ message }` |
+| Method | Endpoint                     | Body              | Response         |
+| ------ | ---------------------------- | ----------------- | ---------------- |
+| GET    | `/api/admin/users`           | —                 | `[ User ]`       |
+| GET    | `/api/admin/restaurants`     | —                 | `[ Restaurant ]` |
+| POST   | `/api/admin/restaurants`     | restaurant fields | `Restaurant`     |
+| PATCH  | `/api/admin/restaurants/:id` | restaurant fields | `Restaurant`     |
+| DELETE | `/api/admin/restaurants/:id` | —                 | `{ message }`    |
 
 ---
 
 ## Key Frontend Features
 
 ### Home Page
+
 - **Map** — Leaflet/OSM map showing all 7 restaurants as orange **R** markers at their Kathmandu locations. Click marker for popup with name + cuisine.
 - **Search** — Text filter by restaurant name or cuisine, **debounced 300ms** so the request fires only after the user pauses typing.
 - **Error / retry** — If the restaurant list fails to load, an inline error state with a **Retry** button and an error toast is shown.
@@ -383,17 +406,20 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 - **Location label** — "Delivering to Kathmandu, Nepal".
 
 ### Checkout
+
 - **Phone number** — Required field with format validation (7-15 digits).
 - **Inline validation** — Red borders + error messages for missing address, phone, map location, or closed restaurant.
 - **Cart badge** — Navbar shows live item count via `cart-update` custom event.
 
 ### Cart → Delivery Location (Feature 1)
+
 - The Cart page shows a **map location picker** ("1. Choose your delivery location") before checkout.
 - The customer clicks the map (or "Use current location") to drop a delivery pin.
 - The chosen location is persisted to localStorage (`delivery-location`) and prefilled on the Checkout page map.
 - "2. Proceed to Checkout" navigates to `/checkout`; the saved location is cleared after the order is placed.
 
 ### Email Verification (Feature 2)
+
 - **Register** creates an unverified account (`emailVerified: false`) and does **not** log the user in or return a token. The response includes a `devLink` (dev mode only) and the `verificationToken` for immediate use.
 - **Login** returns `403 { code: 'EMAIL_NOT_VERIFIED', email }` until the account is verified. Login shows a banner with a "Resend verification link" action.
 - **Verify page** (`/verify-email`) consumes `GET /api/auth/verify-email?token=`, shows success/error, and offers resend. After registration, users are automatically redirected with the verification token for immediate verification.
@@ -402,22 +428,26 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 - Seed users are pre-verified so demo logins still work.
 
 ### Notifications (Feature 3)
+
 - **In-app bell** in the Navbar polls `/api/notifications/unread-count` every 15s, shows an unread badge, and a dropdown list. Mark-read and mark-all-read actions are wired.
 - **Browser push** — on an unread-count increase, the frontend requests the `Notification` permission once and shows a browser notification (title + message). Works while the tab is open.
 - **Events**: owner receives "New order received" on order create; customer receives notifications when an order is **Confirmed**, **Rejected**, **Out for Delivery**, and **Delivered**.
 
 ### Password Reset (Feature 5)
+
 - **Forgot Password page** (`/forgot-password`, wrapped in `AuthShell`) — email-or-username form → `POST /api/auth/forgot-password`. Always shows the same generic success message ("If an account exists...") so the endpoint does not leak which emails are registered.
 - **Reset Password page** (`/reset-password?token=&email=`) — new password + confirm with the same strength rules as Register → `POST /api/auth/reset-password`. A missing/invalid token shows an inline warning with a "Request a new reset link" action.
 - **Backend** — reset tokens are single-use, SHA-256 hashed at rest, expire after 30 minutes, and a successful reset clears the account lockout (`failedLoginAttempts`/`lockedUntil`). Rate-limited (5/10 min) like registration.
 - **Dev mailer** prints the reset link (`FRONTEND_URL` + `/reset-password?token=...`) to the server console; production sends real email via Resend.
 
 ### Rider Dispatch (Feature 6)
+
 - **Owner dashboard** fetches `GET /api/owner/riders` and shows a rider dropdown per order; the accept modal requires selecting a rider before confirming an order.
 - **Assign later** — a per-order "Assign rider" dropdown calls `PATCH /api/owner/orders/:id/rider`, so riders can be (re)assigned after an order is placed (not on terminal orders).
 - **Backend** — `PATCH /api/owner/orders/:id/status` now returns `400` if `riderId` is missing for `Pending → Confirmed`; it no longer auto-assigns the owner as rider.
 
 ### Image Uploads (Feature 4)
+
 - **Upload API** — `POST /api/upload/image` (multer, 5MB max, jpeg/png/gif/webp) stores files in `server/uploads/` and returns a relative URL (`/uploads/<file>`).
 - **ImageUpload component** (`src/components/ImageUpload.jsx`) — reusable file picker with preview, used in:
   - Owner **Settings** tab (restaurant image).
@@ -425,18 +455,22 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 - **Display** — menu item thumbnails appear in the owner menu lists, Cart, and the customer Restaurant page.
 
 ### Email Normalization
+
 Emails are trimmed and lowercased both on the frontend (AuthContext) and backend (auth routes), so `John@Test.com` matches `john@test.com`.
 
 ### Responsive Navigation
+
 - **Hamburger menu** — Navbar collapses to a hamburger button (`☰`/`✕`) on small screens. Menu items slide down in a mobile dropdown.
 - **`aria-expanded`** — Screen-reader-accessible toggle state.
 
 ### Brand Styling
+
 - **CSS variables** — `--primary: #F97316` (orange), `--font-base: 'Inter', system-ui` set via `@theme` directive in `index.css`.
 - **Inter font** — Loaded from Google Fonts in `index.html`.
 - **Hover-lift** — `.hover-lift` utility class: `translateY(-2px)` + box-shadow on hover, applied to restaurant cards.
 
 ### Restaurant Images
+
 - **Schema** — `Restaurant.image` (String?) added via migration `add_image`.
 - **Placeholder URLs** — Each of the 6 restaurants has a `placehold.co` URL in seed data.
 - **Display** — Thumbnail image shown on Home cards and Restaurant detail page.
@@ -445,22 +479,24 @@ Emails are trimmed and lowercased both on the frontend (AuthContext) and backend
 
 When a restaurant owner edits their menu, the available categories auto-filter based on the restaurant's cuisine type. These are defined in `CUISINE_CATEGORIES` in `src/data/mock.js`:
 
-| Cuisine | Categories |
-|---|---|
-| Italian | Pizza, Pasta, Salad, Dessert, Beverage |
-| American | Burger, Sandwich, Fries, Beverage, Dessert |
-| Japanese | Sushi, Roll, Noodle, Appetizer, Dessert |
-| Mexican | Taco, Quesadilla, Nachos, Burrito, Beverage |
-| Indian | Curry, Bread, Rice, Appetizer, Dessert, Beverage |
-| Chinese | Noodle, Rice, Dumpling, Appetizer, Soup |
-| Nepali | Momo, Curry, Rice, Dal Bhat, Appetizer, Beverage |
+| Cuisine  | Categories                                       |
+| -------- | ------------------------------------------------ |
+| Italian  | Pizza, Pasta, Salad, Dessert, Beverage           |
+| American | Burger, Sandwich, Fries, Beverage, Dessert       |
+| Japanese | Sushi, Roll, Noodle, Appetizer, Dessert          |
+| Mexican  | Taco, Quesadilla, Nachos, Burrito, Beverage      |
+| Indian   | Curry, Bread, Rice, Appetizer, Dessert, Beverage |
+| Chinese  | Noodle, Rice, Dumpling, Appetizer, Soup          |
+| Nepali   | Momo, Curry, Rice, Dal Bhat, Appetizer, Beverage |
 
 ### OSRM Road Routing
+
 - **RoadRoute component** — Fetches driving route geometry from the public OSRM API (`router.project-osrm.org`).
 - **Real polyline** — Replaces the previous straight-line polyline with the actual road path.
 - **Fallback** — If the OSRM fetch fails, no route is drawn and a small non-blocking "Route unavailable" note is shown instead of failing silently.
 
 ### Accessibility
+
 - **`aria-label`** — Added to search input, cuisine filter chips (`aria-pressed`), login/register buttons, checkout actions, place-order, and "use current location" button.
 - **`aria-expanded`** — Navbar hamburger menu communicates toggle state.
 
@@ -546,21 +582,21 @@ SmartServe is developed using an **agile (Scrum-style) methodology**: small, tim
 
 ### Roles
 
-| Role | Responsibility | Owner |
-|---|---|---|
+| Role          | Responsibility                                          | Owner                |
+| ------------- | ------------------------------------------------------- | -------------------- |
 | Product Owner | Prioritizes backlog, defines user stories, accepts work | Client / stakeholder |
-| Scrum Master | Facilitates ceremonies, removes blockers, guards DoD | Dev lead |
-| Developers | Implement stories, self-organize, estimate | Engineering team |
+| Scrum Master  | Facilitates ceremonies, removes blockers, guards DoD    | Dev lead             |
+| Developers    | Implement stories, self-organize, estimate              | Engineering team     |
 
 ### Ceremonies
 
-| Ceremony | Frequency | Purpose |
-|---|---|---|
-| Backlog grooming | Bi-weekly | Split epics into stories, estimate, re-prioritize |
-| Sprint planning | Start of each sprint | Commit to sprint goal + sprint backlog |
-| Daily stand-up | Daily (15 min) | Progress, plan, blockers |
-| Sprint review | End of sprint | Demo working increment to stakeholders |
-| Retrospective | End of sprint | What went well / improve / action items |
+| Ceremony         | Frequency            | Purpose                                           |
+| ---------------- | -------------------- | ------------------------------------------------- |
+| Backlog grooming | Bi-weekly            | Split epics into stories, estimate, re-prioritize |
+| Sprint planning  | Start of each sprint | Commit to sprint goal + sprint backlog            |
+| Daily stand-up   | Daily (15 min)       | Progress, plan, blockers                          |
+| Sprint review    | End of sprint        | Demo working increment to stakeholders            |
+| Retrospective    | End of sprint        | What went well / improve / action items           |
 
 ### Definition of Done (DoD)
 
@@ -576,32 +612,32 @@ A user story is **Done** only when all of the following are true:
 
 ### Product Backlog (prioritized)
 
-| ID | User story | Priority | Status |
-|---|---|---|---|
-| US-01 | As a customer, I want to enter my delivery location on the Cart page so that I can go straight to checkout | High | ✅ Done (Sprint 6) |
-| US-02 | As a new user, I want to verify my email before logging in so that my account is secure | High | ✅ Done (Sprint 6) |
-| US-03 | As a customer, I want a notification when the restaurant accepts or rejects my order | High | ✅ Done (Sprint 6) |
-| US-04 | As an owner, I want to upload images for my restaurant and menu items | High | ✅ Done (Sprint 6) |
-| US-05 | As a customer, I want the order tracker to update live so that I don't have to refresh | High | 🆕 Backlog |
-| US-06 | As a customer, I want a 3-step checkout wizard with live validation | Medium | 🆕 Backlog |
-| US-07 | As a user, I want dark mode and reduced-motion support | Medium | 🆕 Backlog |
-| US-08 | As an owner, I want to manage restaurant linking to my account | Low | 🆕 Backlog |
-| US-09 | As a user who forgot my password, I want to reset it via email so that I can get back into my account | High | ✅ Done (Sprint 9) |
-| US-10 | As an owner, I want to assign a specific rider to each order so that deliveries are dispatched | High | ✅ Done (Sprint 9) |
+| ID    | User story                                                                                                 | Priority | Status             |
+| ----- | ---------------------------------------------------------------------------------------------------------- | -------- | ------------------ |
+| US-01 | As a customer, I want to enter my delivery location on the Cart page so that I can go straight to checkout | High     | ✅ Done (Sprint 6) |
+| US-02 | As a new user, I want to verify my email before logging in so that my account is secure                    | High     | ✅ Done (Sprint 6) |
+| US-03 | As a customer, I want a notification when the restaurant accepts or rejects my order                       | High     | ✅ Done (Sprint 6) |
+| US-04 | As an owner, I want to upload images for my restaurant and menu items                                      | High     | ✅ Done (Sprint 6) |
+| US-05 | As a customer, I want the order tracker to update live so that I don't have to refresh                     | High     | 🆕 Backlog         |
+| US-06 | As a customer, I want a 3-step checkout wizard with live validation                                        | Medium   | 🆕 Backlog         |
+| US-07 | As a user, I want dark mode and reduced-motion support                                                     | Medium   | 🆕 Backlog         |
+| US-08 | As an owner, I want to manage restaurant linking to my account                                             | Low      | 🆕 Backlog         |
+| US-09 | As a user who forgot my password, I want to reset it via email so that I can get back into my account      | High     | ✅ Done (Sprint 9) |
+| US-10 | As an owner, I want to assign a specific rider to each order so that deliveries are dispatched             | High     | ✅ Done (Sprint 9) |
 
 ### Sprint History
 
-| Sprint | Goal | Delivered |
-|---|---|---|
-| 1 | Foundation | Express + Prisma + MySQL API, JWT httpOnly auth, CORS, CSRF |
-| 2 | Discovery | Home page with map, search, cuisine filters, sort, pagination |
-| 3 | Ordering | Restaurant/menu pages, cart (localStorage), mock payment checkout |
-| 4 | Fulfillment | Role dashboards: owner (orders/menu/settings), rider (deliveries/earnings), admin CRUD |
-| 5 | Reliability | Security checklist, account lockout, rate limits, accessibility audit, category/subcategory menu system, docs |
-| 6 | Engagement (current) | **Delivery location → checkout (US-01), email verification (US-02), in-app + browser notifications (US-03), image uploads (US-04)** |
-| 7 | Polish (planned) | Tracking polling, checkout wizard, dark mode, performance/lazy routes |
-| 8 | Hardening (bug fixes) | Visibility-aware order tracking polling, real rider coords (no simulated rider), error surfacing (Home retry, Checkout toast, OSRM route note), debounced restaurant search, dismissible + capped toasts |
-| 9 | Auth + dispatch (done) | Password reset via email (forgot-password/reset-password, single-use hashed 30-min tokens), owner-driven rider dispatch (rider list + per-order assignment), Vite proxy to backend, relative upload URLs, 401 redirect guard, EADDRINUSE guard |
+| Sprint | Goal                   | Delivered                                                                                                                                                                                                                                      |
+| ------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | Foundation             | Express + Prisma + MySQL API, JWT httpOnly auth, CORS, CSRF                                                                                                                                                                                    |
+| 2      | Discovery              | Home page with map, search, cuisine filters, sort, pagination                                                                                                                                                                                  |
+| 3      | Ordering               | Restaurant/menu pages, cart (localStorage), mock payment checkout                                                                                                                                                                              |
+| 4      | Fulfillment            | Role dashboards: owner (orders/menu/settings), rider (deliveries/earnings), admin CRUD                                                                                                                                                         |
+| 5      | Reliability            | Security checklist, account lockout, rate limits, accessibility audit, category/subcategory menu system, docs                                                                                                                                  |
+| 6      | Engagement (current)   | **Delivery location → checkout (US-01), email verification (US-02), in-app + browser notifications (US-03), image uploads (US-04)**                                                                                                            |
+| 7      | Polish (planned)       | Tracking polling, checkout wizard, dark mode, performance/lazy routes                                                                                                                                                                          |
+| 8      | Hardening (bug fixes)  | Visibility-aware order tracking polling, real rider coords (no simulated rider), error surfacing (Home retry, Checkout toast, OSRM route note), debounced restaurant search, dismissible + capped toasts                                       |
+| 9      | Auth + dispatch (done) | Password reset via email (forgot-password/reset-password, single-use hashed 30-min tokens), owner-driven rider dispatch (rider list + per-order assignment), Vite proxy to backend, relative upload URLs, 401 redirect guard, EADDRINUSE guard |
 
 ### Velocity & Quality
 
@@ -620,14 +656,14 @@ A user story is **Done** only when all of the following are true:
 
 ### Abstraction layers
 
-| Layer | Responsibility | Examples |
-|---|---|---|
-| App shell | Providers + global layout + route table | `ErrorBoundary`, `AuthProvider`, `ToastProvider`, `NotificationProvider`, `Navbar`, `<Routes>` |
-| Route guards | Authorization at route level | `ProtectedRoute` (logged-in), `RoleRoute` (role check) |
-| Pages | Route-level views / screens | `Login`, `Register`, `VerifyEmail`, `Home`, `Cart`, `Checkout`, `owner/Dashboard`, `rider/Dashboard`, `admin/Panel` |
-| Reusable components | Shared building blocks used by many pages | `Navbar`, `MapView`, `ImageUpload`, `LoadingSkeleton`, `EmptyState`, `ErrorBoundary` |
-| Context providers | Cross-cutting shared state (no prop drilling) | `AuthContext`, `ToastContext`, `NotificationContext` |
-| Services / API client | Data access layer | `api/client.js`, `services/orders.js` |
+| Layer                 | Responsibility                                | Examples                                                                                                            |
+| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| App shell             | Providers + global layout + route table       | `ErrorBoundary`, `AuthProvider`, `ToastProvider`, `NotificationProvider`, `Navbar`, `<Routes>`                      |
+| Route guards          | Authorization at route level                  | `ProtectedRoute` (logged-in), `RoleRoute` (role check)                                                              |
+| Pages                 | Route-level views / screens                   | `Login`, `Register`, `VerifyEmail`, `Home`, `Cart`, `Checkout`, `owner/Dashboard`, `rider/Dashboard`, `admin/Panel` |
+| Reusable components   | Shared building blocks used by many pages     | `Navbar`, `MapView`, `ImageUpload`, `LoadingSkeleton`, `EmptyState`, `ErrorBoundary`                                |
+| Context providers     | Cross-cutting shared state (no prop drilling) | `AuthContext`, `ToastContext`, `NotificationContext`                                                                |
+| Services / API client | Data access layer                             | `api/client.js`, `services/orders.js`                                                                               |
 
 ### Component tree (route → components)
 

@@ -119,7 +119,7 @@ describe('GET /api/auth/verify-email', () => {
   it('verifies an email via the dev link token, then allows login', async () => {
     const reg = await request(app).post('/api/auth/register').send({ name: `Verify ${ts}`, email, password })
     expect(reg.status).toBe(201)
-    expect(reg.body.devLink).toMatch(/\/api\/auth\/verify-email\?token=/)
+    expect(reg.body.devLink).toMatch(/\/verify-email\?token=/)
     token = new URL(reg.body.devLink).searchParams.get('token')
     expect(token).toBeTruthy()
 
@@ -140,6 +140,21 @@ describe('GET /api/auth/verify-email', () => {
   it('rejects an invalid token', async () => {
     const res = await request(app).get('/api/auth/verify-email?token=nonexistent-token')
     expect(res.status).toBe(400)
+  })
+
+  it('is idempotent: re-verifying an already-verified account returns success', async () => {
+    const ts2 = Date.now()
+    const email2 = `verify2${ts2}@test.com`
+    createdEmails.push(email2)
+    const reg = await request(app).post('/api/auth/register').send({ name: `Verify2 ${ts2}`, email: email2, password: 'StrongPass1!' })
+    const token2 = new URL(reg.body.devLink).searchParams.get('token')
+
+    const first = await request(app).get(`/api/auth/verify-email?token=${token2}&email=${email2}`)
+    expect(first.status).toBe(200)
+
+    const second = await request(app).get(`/api/auth/verify-email?token=${token2}&email=${email2}`)
+    expect(second.status).toBe(200)
+    expect(second.body.message).toMatch(/already verified/i)
   })
 })
 
