@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -27,6 +27,7 @@ export default function Login() {
   const { showToast } = useToast()
   const [form, setForm] = useState({ login: '', password: '' })
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [unverifiedEmail, setUnverifiedEmail] = useState('')
@@ -43,9 +44,11 @@ export default function Login() {
     e.preventDefault()
     if (!validate()) return
     setLoading(true)
+    setServerError('')
     try {
       const u = await login(form.login, form.password)
       setUnverifiedEmail('')
+      setServerError('')
       showToast('Welcome back!', 'success')
       const roleRoutes = { rider: '/owner', owner: '/owner', admin: '/admin' }
       navigate(roleRoutes[u.role] || '/')
@@ -54,20 +57,30 @@ export default function Login() {
       const code = err?.response?.data?.code
       const email = err?.response?.data?.email
       if (code === 'EMAIL_NOT_VERIFIED') {
-        setUnverifiedEmail(email || form.login.trim())
+        const targetEmail = email || form.login.trim()
+        setUnverifiedEmail(targetEmail)
+        setServerError('Please verify your email before logging in.')
         showToast('Please verify your email before logging in', 'error')
       } else if (status === 423) {
         setUnverifiedEmail('')
-        showToast(err?.response?.data?.error || 'Account locked. Try again later.', 'error')
+        const msg = err?.response?.data?.error || 'Account locked. Try again later.'
+        setServerError(msg)
+        showToast(msg, 'error')
       } else if (status === 429) {
         setUnverifiedEmail('')
-        showToast('Too many attempts. Try again later.', 'error')
+        const msg = err?.response?.data?.error || 'Too many attempts. Try again later.'
+        setServerError(msg)
+        showToast(msg, 'error')
       } else if (!err.response) {
         setUnverifiedEmail('')
-        showToast('Cannot reach server. Check your connection and try again.', 'error')
+        const msg = 'Cannot reach server. Check your connection and try again.'
+        setServerError(msg)
+        showToast(msg, 'error')
       } else {
         setUnverifiedEmail('')
-        showToast('Invalid email/username or password', 'error')
+        const msg = err?.response?.data?.error || 'Invalid email/username or password'
+        setServerError(msg)
+        showToast(msg, 'error')
       }
     } finally {
       setLoading(false)
@@ -76,6 +89,11 @@ export default function Login() {
 
   return (
     <AuthShell title="Login" subtitle="Welcome back! Sign in to your account.">
+      {serverError && (
+        <div role="alert" className="mb-4 border border-red-300 bg-red-50 text-red-800 rounded p-3 text-sm">
+          {serverError}
+        </div>
+      )}
       {unverifiedEmail && (
         <div role="alert" className="mb-4 border border-amber-300 bg-amber-50 text-amber-800 rounded p-3 text-sm">
           Your email is not verified yet. Please verify it before logging in.
@@ -96,7 +114,7 @@ export default function Login() {
             value={form.login}
             aria-invalid={!!errors.login}
             aria-describedby={errors.login ? 'login-field-error' : undefined}
-            onChange={e => { setForm(p => ({ ...p, login: e.target.value })); setErrors(p => ({ ...p, login: '' })) }}
+            onChange={e => { setForm(p => ({ ...p, login: e.target.value })); setErrors(p => ({ ...p, login: '' })); setServerError('') }}
           />
           {errors.login && <p id="login-field-error" role="alert" className="text-red-600 text-xs mt-1">{errors.login}</p>}
         </div>
@@ -115,7 +133,7 @@ export default function Login() {
               value={form.password}
               aria-invalid={!!errors.password}
               aria-describedby={errors.password ? 'login-pw-error' : undefined}
-              onChange={e => { setForm(p => ({ ...p, password: e.target.value })); setErrors(p => ({ ...p, password: '' })) }}
+              onChange={e => { setForm(p => ({ ...p, password: e.target.value })); setErrors(p => ({ ...p, password: '' })); setServerError('') }}
             />
             <Eye open={showPw} onClick={() => setShowPw(p => !p)} />
           </div>

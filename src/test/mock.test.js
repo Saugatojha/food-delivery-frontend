@@ -31,6 +31,14 @@ describe('mockLogin', () => {
     expect(result.user).not.toHaveProperty('password')
   })
 
+  it('supports case-insensitive email and username login', () => {
+    const byUpperEmail = mockLogin('JOHN@EXAMPLE.COM', 'password')
+    expect(byUpperEmail.user.email).toBe('john@example.com')
+
+    const byName = mockLogin('John Doe', 'password')
+    expect(byName.user.name).toBe('John Doe')
+  })
+
   it('throws on invalid email', () => {
     expect(() => mockLogin('noone@example.com', 'x')).toThrow('Invalid email or password')
   })

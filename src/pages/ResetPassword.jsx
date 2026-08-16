@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import AuthShell from '../components/AuthShell'
 
 const PASSWORD_RULES = [
   { label: 'At least 8 characters', test: (p) => p.length >= 8 },
@@ -42,12 +43,18 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const strengthId = useId()
+
+  const strength = PASSWORD_RULES.filter(r => r.test(password)).length
+  const strengthLabel = strength <= 2 ? 'Weak' : strength <= 4 ? 'Good' : 'Strong'
+  const strengthColor = strength <= 2 ? 'bg-red-500' : strength <= 4 ? 'bg-amber-500' : 'bg-green-500'
 
   const validate = () => {
     const e = {}
     if (!password) e.password = 'Password is required'
     else if (!PASSWORD_RULES.every(r => r.test(password))) e.password = 'Password does not meet all requirements'
-    if (password !== confirm) e.confirm = 'Passwords do not match'
+    if (!confirm) e.confirm = 'Please confirm your password'
+    else if (password !== confirm) e.confirm = 'Passwords do not match'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -62,7 +69,9 @@ export default function ResetPassword() {
       showToast('Password reset successful! Please log in.', 'success')
       navigate('/login')
     } catch (err) {
-      setServerError(err?.response ? (err.response.data?.error || 'Password reset failed') : 'Cannot reach server — is it running on port 5001?')
+      const msg = err?.response ? (err.response.data?.error || 'Password reset failed') : 'Cannot reach server — is it running on port 5001?'
+      setServerError(msg)
+      showToast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -70,25 +79,32 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <div className="max-w-md mx-auto mt-10 p-6">
-        <h1 className="text-2xl font-bold mb-4">Reset Password</h1>
+      <AuthShell title="Reset Password" subtitle="Set a new password for your account.">
         <div role="alert" className="mb-4 border border-amber-300 bg-amber-50 text-amber-800 rounded p-3 text-sm">
-          This link is invalid or missing. Please request a new one.
+          This password reset link is invalid or missing. Please request a new one.
         </div>
-        <Link to="/forgot-password" className={`text-orange-700 font-medium ${FOCUS_RING}`}>Request a new reset link</Link>
-      </div>
+        <Link to="/forgot-password" className={`inline-block text-orange-700 font-medium ${FOCUS_RING}`}>
+          Request a new reset link
+        </Link>
+        <p className="text-sm text-center text-gray-500 mt-6">
+          <Link to="/login" className={`text-orange-700 font-medium ${FOCUS_RING}`}>Back to login</Link>
+        </p>
+      </AuthShell>
     )
   }
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6">
-      <h1 className="text-2xl font-bold mb-1">Reset Password</h1>
-      {email && <p className="text-sm text-gray-500 mb-6">Set a new password for <span className="font-medium">{email}</span>.</p>}
-      {!email && <p className="text-sm text-gray-500 mb-6">Choose a new password for your account.</p>}
+    <AuthShell
+      title="Reset Password"
+      subtitle={email ? `Set a new password for ${email}.` : 'Choose a new password for your account.'}
+    >
+      {serverError && (
+        <div role="alert" className="mb-4 border border-red-300 bg-red-50 text-red-800 rounded p-3 text-sm">
+          {serverError}
+        </div>
+      )}
 
-      {serverError && <div role="alert" className="mb-4 border border-red-300 bg-red-50 text-red-800 rounded p-3 text-sm">{serverError}</div>}
-
-      <form onSubmit={handleSubmit} className="grid gap-4" noValidate>
+      <form onSubmit={handleSubmit} className="grid gap-4" aria-busy={loading} noValidate>
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="reset-pw">New Password</label>
           <div className="relative">
@@ -100,14 +116,38 @@ export default function ResetPassword() {
               placeholder="Enter new password"
               value={password}
               aria-invalid={!!errors.password}
-              aria-describedby={errors.password ? 'reset-pw-error' : undefined}
-              onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: '' })) }}
+              aria-describedby={[errors.password ? 'reset-pw-error' : '', password ? strengthId : ''].filter(Boolean).join(' ') || undefined}
+              onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: '' })); setServerError('') }}
             />
             <Eye open={showPw} onClick={() => setShowPw(p => !p)} />
           </div>
           {errors.password && <p id="reset-pw-error" role="alert" className="text-red-600 text-xs mt-1">{errors.password}</p>}
-          <p className="text-xs text-gray-500 mt-1">At least 8 characters, with uppercase, lowercase, a number and a special character.</p>
+          
+          {password && (
+            <div id={strengthId} className="mt-2" role="status" aria-live="polite">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-1.5 flex-1 rounded bg-gray-200 overflow-hidden">
+                  <div className={`h-full rounded transition-all ${strengthColor}`} style={{ width: `${(strength / PASSWORD_RULES.length) * 100}%` }} />
+                </div>
+                <span className="text-xs text-gray-500 w-16 text-right">{strengthLabel}</span>
+              </div>
+              <ul className="space-y-0.5">
+                {PASSWORD_RULES.map(r => {
+                  const ok = r.test(password)
+                  return (
+                    <li key={r.label} className={`text-xs flex items-center gap-1 ${ok ? 'text-green-700' : 'text-gray-400'}`}>
+                      <span aria-hidden="true">{ok ? '✓' : '○'}</span> {r.label}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+          {!password && (
+            <p className="text-xs text-gray-500 mt-1">At least 8 characters, with uppercase, lowercase, a number and a special character.</p>
+          )}
         </div>
+
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="reset-confirm">Confirm New Password</label>
           <div className="relative">
@@ -120,12 +160,13 @@ export default function ResetPassword() {
               value={confirm}
               aria-invalid={!!errors.confirm}
               aria-describedby={errors.confirm ? 'reset-confirm-error' : undefined}
-              onChange={e => { setConfirm(e.target.value); setErrors(p => ({ ...p, confirm: '' })) }}
+              onChange={e => { setConfirm(e.target.value); setErrors(p => ({ ...p, confirm: '' })); setServerError('') }}
             />
             <Eye open={showConfirm} onClick={() => setShowConfirm(p => !p)} />
           </div>
           {errors.confirm && <p id="reset-confirm-error" role="alert" className="text-red-600 text-xs mt-1">{errors.confirm}</p>}
         </div>
+
         <button className={BTN} disabled={loading} aria-label={loading ? 'Resetting password' : 'Reset password'}>
           {loading ? 'Resetting...' : 'Reset password'}
         </button>
@@ -134,6 +175,6 @@ export default function ResetPassword() {
       <p className="text-sm text-center text-gray-500 mt-6">
         <Link to="/login" className={`text-orange-700 font-medium ${FOCUS_RING}`}>Back to login</Link>
       </p>
-    </div>
+    </AuthShell>
   )
 }

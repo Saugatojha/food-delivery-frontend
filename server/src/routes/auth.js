@@ -271,7 +271,7 @@ router.post('/reset-password', resetLimiter, validate('token', 'password'), vali
     const tokenHash = hashResetToken(rawToken)
 
     const reset = await prisma.passwordResetToken.findUnique({ where: { token: tokenHash }, include: { user: true } })
-    if (!reset || reset.usedAt) return badRequest(res, 'Invalid or expired reset token')
+    if (!reset || !reset.user || reset.usedAt) return badRequest(res, 'Invalid or expired reset token')
     if (reset.expiresAt < new Date()) {
       await prisma.passwordResetToken.delete({ where: { id: reset.id } })
       return badRequest(res, 'Reset token has expired. Request a new one.')

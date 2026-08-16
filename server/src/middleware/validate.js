@@ -38,7 +38,10 @@ function validatePassword(password) {
 
 function validate(...fields) {
   return (req, res, next) => {
-    const missing = fields.filter(f => req.body[f] === undefined || req.body[f] === null || req.body[f] === '')
+    const missing = fields.filter(f => {
+      const val = req.body[f]
+      return val === undefined || val === null || (typeof val === 'string' ? val.trim() === '' : val === '')
+    })
     if (missing.length > 0) {
       return badRequest(res, `Missing required fields: ${missing.join(', ')}`)
     }

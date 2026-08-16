@@ -25,17 +25,19 @@ export const MENUS = {
   7: [{ id: 701, name: 'Chicken Momo', category: 'Momo', price: 280, desc: 'Steamed chicken dumplings with achar' }, { id: 702, name: 'Buff Momo', category: 'Momo', price: 320, desc: 'Buff momo served with sesame dip' }, { id: 703, name: 'Dal Bhat', category: 'Rice', price: 350, desc: 'Rice with lentil soup and curry' }, { id: 704, name: 'Chow Mein', category: 'Noodle', price: 220, desc: 'Nepali-style street chow mein' }, { id: 705, name: 'Lassi', category: 'Beverage', price: 120, desc: 'Refreshing yogurt drink' }],
 }
 
-export function mockLogin(email, password) {
-  const user = MOCK_USERS.find(u => u.email === email && u.password === password)
+export function mockLogin(login, password) {
+  const clean = (login || '').trim().toLowerCase()
+  const user = MOCK_USERS.find(u => (u.email.toLowerCase() === clean || u.name.toLowerCase() === clean) && u.password === password)
   if (!user) throw new Error('Invalid email or password')
   const { password: _, ...safe } = user
   return { token: 'mock-jwt-' + Date.now(), user: safe }
 }
 
 export function mockRegister(name, email, password, role = 'customer') {
-  const exists = MOCK_USERS.find(u => u.email === email)
+  const cleanEmail = (email || '').trim().toLowerCase()
+  const exists = MOCK_USERS.find(u => u.email.toLowerCase() === cleanEmail)
   if (exists) throw new Error('Email already registered')
-  const newUser = { id: Date.now(), name, email, password, role, restaurantId: null }
+  const newUser = { id: Date.now(), name: (name || '').trim(), email: cleanEmail, password, role, restaurantId: null }
   MOCK_USERS.push(newUser)
   const { password: _, ...safe } = newUser
   return { token: 'mock-jwt-' + Date.now(), user: safe }
