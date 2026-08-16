@@ -25,31 +25,31 @@ describe('calcTotal', () => {
 
 describe('mockLogin', () => {
   it('returns token and user on valid credentials', () => {
-    const result = mockLogin('john@test.com', 'password')
+    const result = mockLogin('john@example.com', 'password')
     expect(result.token).toContain('mock-jwt-')
-    expect(result.user.email).toBe('john@test.com')
+    expect(result.user.email).toBe('john@example.com')
     expect(result.user).not.toHaveProperty('password')
   })
 
   it('throws on invalid email', () => {
-    expect(() => mockLogin('noone@test.com', 'x')).toThrow('Invalid email or password')
+    expect(() => mockLogin('noone@example.com', 'x')).toThrow('Invalid email or password')
   })
 
   it('throws on wrong password', () => {
-    expect(() => mockLogin('john@test.com', 'wrong')).toThrow('Invalid email or password')
+    expect(() => mockLogin('john@example.com', 'wrong')).toThrow('Invalid email or password')
   })
 })
 
 describe('mockRegister', () => {
   it('returns token and user for new account', () => {
-    const result = mockRegister('Test', 'new@test.com', 'pass')
+    const result = mockRegister('Test', 'new@example.com', 'pass')
     expect(result.token).toContain('mock-jwt-')
     expect(result.user.name).toBe('Test')
     expect(result.user.role).toBe('customer')
   })
 
   it('throws on duplicate email', () => {
-    expect(() => mockRegister('Dup', 'john@test.com', 'x')).toThrow('Email already registered')
+    expect(() => mockRegister('Dup', 'john@example.com', 'x')).toThrow('Email already registered')
   })
 })
 

@@ -1,8 +1,8 @@
 # Resend Email Integration — Change Log
 
-Branch: `santosh` (NOT merged to `main`)
+Status: **Merged to `main`**
 
-This file documents every change made to integrate Resend into the SmartServe food-delivery backend. It is updated after each change, and changes are pushed to the `santosh` branch only.
+This file documents the changes made to integrate Resend into the SmartServe food-delivery backend.
 
 ## 2026-08-09 — Initial Resend integration
 
@@ -16,17 +16,17 @@ This file documents every change made to integrate Resend into the SmartServe fo
 
 - Replaced the production stub (previously just a log line) with a real Resend client.
 - Behavior:
-  - **Dev mode** (`NODE_ENV !== 'production'`): still logs the verify link to the terminal and returns `{ devLink }` (tests and local flow unchanged).
+  - **Dev mode** (`NODE_ENV !== 'production'`): logs the verify/reset links to the terminal and returns `{ devLink }` (tests and local flow unchanged).
   - **Production**: sends the email via `resend.emails.send()` using `RESEND_FROM` (default `onboarding@resend.dev`) and returns `{}`.
 - Added defensive guard: if `RESEND_API_KEY` is missing, the server no longer crashes at startup; it throws a clear error only when actually sending in production.
 - Updated files: `server/src/utils/mailer.js`.
 
 ### Change 3: Fixed callers to `await` the async mailer
 
-- `sendVerificationEmail` is now `async` (returns a Promise). The two call sites were not awaiting it, which would break the `devLink` response in dev mode.
-- Added `await` at:
+- `sendVerificationEmail` is `async` (returns a Promise). Call sites await it properly:
   - `server/src/routes/auth.js` — `/register` handler
   - `server/src/routes/auth.js` — `/resend-verification` handler
+  - `server/src/routes/auth.js` — `/forgot-password` handler
 - Updated files: `server/src/routes/auth.js`.
 
 ### Change 4: Documented new env vars
@@ -38,15 +38,8 @@ This file documents every change made to integrate Resend into the SmartServe fo
 ### Verification
 
 - `mailer.js` loads and exports correctly.
-- Dev-mode path returns a correct verify link (tested with a fake token).
+- Dev-mode path returns a correct verify link and surfaces in devLink.
 - `npm run lint` (root): passes.
-- Server test suite: 15/15 pass in `statusFlow.test.js`; DB-dependent tests (register/login/orders) time out because no MySQL instance is running — pre-existing environment issue, unrelated to this change.
-
-### Push status (2026-08-09)
-
-- Committed locally on `santosh` as `b8f6e18`.
-- Push to `origin/santosh` failed with `403 Permission denied` — the embedded token in the git remote URL was expired, and the authenticated `gh` account (`santosh9805922397-lab`) does not have collaborator access to `Saugatojha/food-delivery-frontend`.
-- Removed the stale embedded token from `~/.gitconfig` (security: it was leaking a secret and had gone stale). Push will work once valid credentials are provided (new PAT with repo scope, or the `gh` account added as a collaborator).
 
 ### How to test a real send
 

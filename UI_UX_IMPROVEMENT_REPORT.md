@@ -7,7 +7,7 @@
 
 ## 1. Current State of UI/UX (Audit)
 
-SmartServe is a React 19 + Vite 8 frontend styled with Tailwind CSS 4, talking to an Express/Prisma/MySQL API. Overall it is a **functional, honest MVP**: every page has loading, empty, and error-ish feedback, and basic accessibility labels exist. It reads as "engineer-built but clean". The gaps are in *polish, motion, discoverability, and a few functional UX bugs* (notably: order tracking never auto-refreshes).
+SmartServe is a React 19 + Vite 8 frontend styled with Tailwind CSS 4, talking to an Express/Prisma/MySQL API. Overall it is a **functional, robust application**: every page has loading, empty, and error feedback, live order tracking with visibility-aware polling, and accessibility labels. The remaining opportunities are in *visual motion, advanced design tokens, multi-step checkout wizardry, and expanded theme support*.
 
 ### 1.1 What is working today
 
@@ -16,25 +16,22 @@ SmartServe is a React 19 + Vite 8 frontend styled with Tailwind CSS 4, talking t
 | Consistent brand | Orange `#F97316` via `index.css` `--primary`, Inter font, `.hover-lift` cards |
 | Loading feedback | `CardSkeleton` / `ListSkeleton` in `LoadingSkeleton.jsx`, used in Home, Dashboard, Orders |
 | Empty states | Reusable `EmptyState` (icon + title + message + action) across Cart, Orders, Home |
-| Toast feedback | `ToastContext` with `role="alert"`, `aria-live="assertive"`, 3s auto-dismiss |
-| Map resilience | `TileErrorFallback` in `MapView` shows a graceful "tiles unavailable" overlay |
+| Toast feedback | `ToastContext` with `role="alert"`, `aria-live="assertive"`, 3s auto-dismiss, manual dismiss button, 3-toast queue cap |
+| Map resilience | `TileErrorFallback` in `MapView` shows a graceful "tiles unavailable" overlay, non-blocking OSRM road route fallback |
 | A11y basics | `aria-label`, `aria-pressed` (cuisine chips), `aria-disabled` (closed restaurants), `role="status"`, `aria-expanded` (menu/bell) |
-| Responsive | Hamburger nav, `sm:`/`lg:` grids, pagination |
+| Responsive | Hamburger nav with slide-out menu, responsive grids (`sm:`/`lg:`), pagination |
 | Inline validation | Login/Register password rules, Checkout address/phone/location |
-| New features shipped | Notification bell + polling, email verification flow, map-based location on Cart, image uploads |
+| Real-time features | Visibility-aware live order polling (15s), in-app notification bell polling, browser push alerts |
+| Dynamic workflows | Custom dynamic category management, owner/rider unified dashboard, role-based order status transitions |
 
-### 1.2 Weaknesses / gaps
+### 1.2 Remaining improvement areas & gaps
 
-1. **No design system / design tokens** — every page hardcodes the same Tailwind classes (e.g., `BTN`/`INPUT` strings in Login/Register, repeated `border p-2 rounded w-full` everywhere). A theme change touches dozens of files.
-2. **Order tracking is stale** — `OrderTracking.jsx` fetches once on mount (`useEffect(() => { getAllOrders() ... }, [])`) with **no polling**. The "live" tracker is static until reload.
-3. **Silent failures** — many handlers end with `catch(() => {})` (Home, Checkout fetch, MapView OSRM). Users get no error state, only a blank area.
-4. **Toast is one-way** — fixed bottom-right, no manual dismiss, no exit animation, no queue limits; text-only (no action buttons).
-5. **Map markers are letters** (`R`/`D`/`B` div icons) — no images, no tooltips/`aria-label` on markers, no "center on me" or full-screen control.
-6. **Forms** — no autosave, no "saved" indicator; card validation is manual and incomplete (no Luhn); no keyboard shortcut UX (Enter = submit is implicit).
-7. **Motion** — only the `.hover-lift` transition and toast fade; no route transitions, no status-change animation, no reduced-motion handling.
-8. **Accessibility gaps** — no skip-to-content link, no focus trap for modals/bell dropdown, low-contrast gray-on-white in places, no `prefers-reduced-motion`.
-9. **Search** — every keystroke fires an API call (no debounce), and pagination resets to top without focus.
-10. **No dark mode, no i18n, no RTL** — fine for MVP, missing for scale.
+1. **Design tokens & UI Kit** — replace page-level Tailwind utility repetition with centralized UI components (`<Button>`, `<TextField>`) for seamless theming.
+2. **Checkout Wizard** — upgrade single-page checkout form into a 3-step progressive disclosure wizard (Location → Address & Contact → Payment).
+3. **Motion & Transitions** — add page route transitions, status progression animations, and `prefers-reduced-motion` queries.
+4. **Enhanced Map Controls** — add "center on my location", map zoom controls, and rich custom marker callouts.
+5. **Accessibility Enhancements** — add skip-to-content link, modal focus traps, and full WCAG AA contrast validation.
+6. **Dark Mode & Internationalization** — dark/light theme toggle, multi-language localization (i18n), and currency formatting options.
 
 ---
 
@@ -65,10 +62,10 @@ SmartServe is a React 19 + Vite 8 frontend styled with Tailwind CSS 4, talking t
 
 Based on the components in the codebase, the **two highest-impact sections** to talk about are:
 
-- **A. The Checkout Flow (Cart → Checkout)** — the revenue-critical path, and one we just changed (map location → checkout). It has the most moving parts: map, validation, payment, multi-restaurant carts.
-- **B. Live Order Tracking** — the trust/retention feature and the **worst offender today** (it never polls). It showcases status flow, maps, notifications, and animation.
+- **A. The Checkout Flow (Cart → Checkout)** — the revenue-critical path, combining location selection, address validation, and payment submission.
+- **B. Live Order Tracking** — the trust and retention feature with real-time polling, road routing, status workflows, and interactive map tracking.
 
-Rationale: Checkout is where money is decided; Tracking is where the brand promise is kept. Both are "high-traffic, high-anxiety" moments where UX polish has outsized impact.
+Rationale: Checkout is where conversion is decided; Tracking is where the brand promise is kept. Both are "high-traffic, high-anxiety" moments where UX polish has outsized impact.
 
 ---
 
@@ -203,20 +200,40 @@ useEffect(() => {
 
 ## Section B. Live Order Tracking
 
-### B.1 Current implementation (verbatim from repo)
+### B.1 Current implementation (from repo)
 
 ```jsx
 // src/pages/OrderTracking.jsx (excerpt)
-export default function OrderTracking() {
-  const [orders, setOrders] = useState([])
-  const [loading, setLoading] = useState(true)
+function usePolling(fn, ms = 15000) {
+  const fnRef = useRef(fn)
+  useEffect(() => { fnRef.current = fn })
 
   useEffect(() => {
-    getAllOrders().then(data => setOrders(data)).catch(() => {}).finally(() => setLoading(false))
-  }, [])   // <-- fetch ONCE. Never refreshes.
+    let id
+    const start = () => {
+      clearInterval(id)
+      id = setInterval(() => { if (!document.hidden) fnRef.current() }, ms)
+    }
+    const onVisibility = () => {
+      if (!document.hidden) {
+        fnRef.current()
+        start()
+      }
+    }
+    fnRef.current()
+    start()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', onVisibility)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', onVisibility)
+    }
+  }, [ms])
+}
 ```
 
-Status is rendered as a 5-step progress bar (`STATUS_FLOWS.customer`) and a Leaflet map with restaurant, delivery, and a **simulated** rider midpoint:
+Status is rendered as a 5-step progress bar (`STATUS_FLOWS.customer`) and a Leaflet map with restaurant, delivery, and real rider GPS coordinates (when available):
 
 ```jsx
 const currentStep = STEPS.indexOf(order.status)
@@ -232,38 +249,29 @@ const currentStep = STEPS.indexOf(order.status)
 ```
 
 ```jsx
-// src/pages/OrderTracking.jsx — simulated rider (no live rider coords on customer side)
-function simulateRiderLocation(order) {
-  if (order.status === 'Out for Delivery' && order.restaurant?.latitude && order.deliveryLatitude) {
-    return {
-      latitude: (order.restaurant.latitude + order.deliveryLatitude) / 2,
-      longitude: (order.restaurant.longitude + order.deliveryLongitude) / 2,
-    }
-  }
-  return null
+// src/pages/OrderTracking.jsx — real rider GPS rendering
+function getRiderPosition(order) {
+  const { riderLatitude, riderLongitude } = order.delivery || {}
+  if (riderLatitude == null || riderLongitude == null) return null
+  return { latitude: riderLatitude, longitude: riderLongitude }
 }
 ```
 
 ### B.2 Technical aspects today
 
-- Fetch-once data (stale after 15s of reality).
-- Status → index mapping (`STEPS.indexOf`), conditional color classes.
-- Map from `MapView` (restaurant + delivery + rider markers, OSRM road polyline, `showRouteNote`).
-- **Simulated** rider midpoint instead of real rider GPS (backend `Delivery.riderLatitude/Longitude` exist and are updated by riders — the customer page just doesn't use them).
-- Progress bar: pure divs, no animation library, no timestamps per step.
-- In-app notifications (bell) already poll `/notifications/unread-count` every 15s — a pattern tracking should reuse.
+- **Visibility-aware polling**: 15s polling that pauses when the tab is hidden and refetches immediately upon focus.
+- **Status flow**: sequential step tracking mapped to customer order lifecycle.
+- **Interactive map**: `MapView` rendering restaurant, delivery destination, live rider GPS marker, and OSRM road polyline.
+- **Graceful fallbacks**: transient polling errors preserve last known state on screen without disruption.
 
-### B.3 Problems
+### B.3 Remaining opportunities for polish
 
-1. **Data is static** — the headline "live tracking" feature doesn't refresh. A user watching the screen sees nothing change until they reload.
-2. **Simulated rider** — shows a fake midpoint, not the real rider, despite the backend already tracking rider GPS.
-3. **No ETA/countdown** — `deliveryEta` is displayed as raw text; no "arriving in ~12 min" dynamic estimate.
-4. **No per-step timestamps** — user can't see *when* the order was confirmed, picked up, etc.
-5. **No reorder / support CTA** — the card dead-ends; no "Reorder", "Call restaurant", or "Chat".
-6. **Progress bar has no animation** — status changes just swap colors abruptly; no motion cue draws the eye.
-7. **No empty/loading polish** for refresh (a silent poll that fails just leaves old data with no indication).
+1. **Dynamic ETA Countdown** — calculate and render live "~12 min" estimates based on rider distance.
+2. **Per-Step Timestamps** — show exact confirmation, pickup, and delivery timestamps alongside step indicators.
+3. **Action CTAs** — post-delivery "Reorder" action or "Contact Restaurant / Support" buttons.
+4. **Step Transitions** — smooth animated progress bar transitions with CSS transform/scale.
 
-### B.4 Proposed improvement (theoretical)
+### B.4 Target UX enhancements (future phase)
 
 **1. Poll every 10–15s, pause when tab hidden, resume + refetch on focus (visibility-aware):**
 
@@ -342,33 +350,33 @@ A consolidated list of the technical dimensions a full UI/UX pass must address, 
 | 5 | Responsive | Hamburger nav, sm/lg grids | Tablet/mobile-first audit; touch targets ≥44px |
 | 6 | Loading states | Skeletons on Home/Dashboards; none on Checkout | `useFetch` hook returning `{data, loading, error, refetch}`; skeleton for every async view |
 | 7 | Empty states | `EmptyState` on Cart/Orders/Home | Add action hints everywhere; differentiate "no data" vs "filtered empty" |
-| 8 | Error states | Toast for most; silent `catch{}` on Home/Tracking/OSRM | Page-level error banners + retry; never silent-`catch` |
-| 9 | Toasts | Bottom-right, 3s, no dismiss | Dismiss button, exit animation, action slot, queue cap, `role="status"` for info vs `role="alert"` for errors |
-| 10 | Forms & validation | Submit-time, manual regex | Live validation, `aria-describedby`, disabled-until-valid, Luhn, autosave drafts |
-| 11 | Real-time data | Notifications poll; Tracking does not | Visibility-aware polling hook reused by Tracking + bell; optimistic updates on status change |
-| 12 | Navigation & IA | Role-based nav in Navbar | Breadcrumbs on nested pages, active-link styling, skip-to-content link |
-| 13 | Focus management | Modals manually rendered, no trap | Focus trap + `aria-modal` for confirm dialogs; return focus after close; keyboard esc |
-| 14 | Motion | `.hover-lift`, toast fade | Route transitions, status-step animation, `prefers-reduced-motion` support |
-| 15 | Performance | Maps + full list render; OSRM fetch per order | Memoize heavy maps (`React.memo`), debounce search (300ms), virtualize long lists, lazy-load routes |
-| 16 | Maps UX | Letter markers, no fullscreen | Image/icon markers, `aria-label` on markers, locate-me, fullscreen control, geocoded address chips |
-| 17 | Notifications | Bell + badge + browser push | Per-type settings, read/unread animation, deep-link on click, mark-read on view |
-| 18 | Accessibility | Partial labels | Full ARIA audit: landmarks, focus order, screen-reader announcements, reduced-motion, color-blind-safe states |
-| 19 | i18n / locale | English only | Extract strings to a locale dict; date/time localization (NPR/Nepali locale) |
-| 20 | Dark mode | None | `prefers-color-scheme` + manual toggle persisted to localStorage |
-| 21 | Feedback & copy | Short toasts | Consistent microcopy; action-oriented errors ("Try again", "Go to menu") |
-| 22 | Onboarding | None | Post-registration first-run hints (how ordering works) |
+| 8 | Error states | Surface errors with inline retry (Home), toast hints (Checkout), route note (MapView) | Comprehensive page-level error banners and retry actions |
+| 9 | Toasts | Dismiss button, 3-toast queue cap, alert/assertive live region | Action buttons inside toasts, exit animations, custom icon styles |
+| 10 | Forms & validation | Inline validation on submit/blur | Live character count, disabled-until-valid, Luhn card check, autosave drafts |
+| 11 | Real-time data | Visibility-aware polling on Tracking (15s) and Notification bell (15s) | WebSockets / Server-Sent Events (SSE) for instant push updates |
+| 12 | Navigation & IA | Role-based nav in Navbar with hamburger toggle | Breadcrumbs on nested pages, active-link indicator, skip-to-content link |
+| 13 | Focus management | Modals manually rendered | Full focus trap + `aria-modal` for confirm dialogs; return focus after close; keyboard ESC |
+| 14 | Motion | `.hover-lift`, toast fade | Page route transitions, status-step animation, `prefers-reduced-motion` support |
+| 15 | Performance | Debounced search (300ms), visibility-aware polling, coordinate-keyed OSRM | Memoize heavy maps (`React.memo`), virtualize long lists, lazy-load routes |
+| 16 | Maps UX | Leaflet/OSM markers, real rider GPS coords, OSRM road route | Rich image markers, locate-me button, fullscreen toggle, reverse-geocoded address chips |
+| 17 | Notifications | Bell + badge + unread count polling + browser push | Per-type preference toggles, read/unread animation, deep-link navigation on click |
+| 18 | Accessibility | Partial labels (`aria-label`, `aria-pressed`, `aria-expanded`) | Full ARIA landmark audit, logical focus order, color-blind-safe visual states |
+| 19 | i18n / locale | English only | String dictionaries, date/time localization, NPR currency formatting |
+| 20 | Dark mode | None | `prefers-color-scheme` + manual theme toggle stored in localStorage |
+| 21 | Feedback & copy | Action toasts, inline field validation | Consistent microcopy, action-oriented error dialogs |
+| 22 | Onboarding | None | Post-registration walkthrough hints |
 
 ---
 
 ## 5. Recommended Roadmap
 
-| Phase | Focus | Outcomes |
-|---|---|---|
-| 1 (now) | Fix functional UX bugs | Tracking polling, real rider GPS, debounce search, no silent `catch`, error banners |
-| 2 | Design system | Tokens + Button/TextField/EmptyState/Toast upgrades; a11y pass; reduced-motion |
-| 3 | Checkout redesign | 3-step wizard, live validation + Luhn, sticky summary, autosave, pre-flight |
-| 4 | Tracking redesign | Animated timeline + ETA countdown + reorder/support CTAs, live rider map |
-| 5 | Polish | Route transitions, dark mode, i18n, onboarding, performance (lazy routes) |
+| Phase | Focus | Status | Outcomes |
+|---|---|---|---|
+| 1 | Functional hardening | ✅ Completed | Visibility-aware polling, real rider GPS, debounced search, error surfacing, dismissible toasts |
+| 2 | Workflow & dispatch | ✅ Completed | Dynamic category management, rider delivery workflow, multi-status transitions, email password reset |
+| 3 | Design system | 🔄 Current | Tokens + Button/TextField/EmptyState components, motion layer, a11y pass, reduced-motion |
+| 4 | Checkout redesign | 📋 Backlog | 3-step wizard, live validation, sticky summary, autosave drafts |
+| 5 | Polish & Scale | 📋 Backlog | Animated tracking timeline, dark mode, i18n, performance optimization (lazy routes) |
 
 ---
 

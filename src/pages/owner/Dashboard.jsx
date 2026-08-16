@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { formatPrice, CUISINE_CATEGORIES, CATEGORY_SUBCATEGORIES } from '../../data/mock'
@@ -6,10 +6,9 @@ import { CardSkeleton } from '../../components/LoadingSkeleton'
 import ImageUpload from '../../components/ImageUpload'
 import MapView from '../../components/MapView'
 import api from '../../api/client'
-import { updateOwnerOrderStatus, getRiderEarnings, STATUS_FLOWS, getNextStatus, getAllowedTransitions } from '../../services/orders'
+import { updateOwnerOrderStatus, getRiderEarnings, STATUS_FLOWS, getAllowedTransitions } from '../../services/orders'
 
 const STATUS_FLOW = STATUS_FLOWS.owner
-const TERMINAL = ['Delivered', 'Rejected', 'Cancelled']
 
 function playNotification() {
   try {
@@ -86,6 +85,23 @@ export default function OwnerDashboard() {
     setLoading(false)
   }, [isRider])
 
+  const fetchCategories = useCallback(async () => {
+    if (isRider) return
+    try {
+      const { data } = await api.get('/owner/menu/categories')
+      setCustomCategories(data)
+    } catch (err) {
+      console.error('Failed to fetch categories:', err)
+    }
+  }, [isRider])
+
+  const fetchEarnings = useCallback(async () => {
+    try {
+      const data = await getRiderEarnings()
+      setEarnings(data)
+    } catch { }
+  }, [])
+
   useEffect(() => {
     fetchData()
     const interval = setInterval(fetchData, 15000)
@@ -97,23 +113,6 @@ export default function OwnerDashboard() {
       fetchCategories()
     }
   }, [fetchCategories, tab, isRider])
-
-  const fetchEarnings = useCallback(async () => {
-    try {
-      const data = await getRiderEarnings()
-      setEarnings(data)
-    } catch { }
-  }, [])
-
-  const fetchCategories = useCallback(async () => {
-    if (isRider) return
-    try {
-      const { data } = await api.get('/owner/menu/categories')
-      setCustomCategories(data)
-    } catch (err) {
-      console.error('Failed to fetch categories:', err)
-    }
-  }, [isRider])
 
   useEffect(() => {
     if (tab === 'earnings') fetchEarnings()
@@ -272,8 +271,6 @@ export default function OwnerDashboard() {
       showToast(err?.response?.data?.error || 'Failed to assign rider', 'error')
     }
   }
-
-  const categories = CUISINE_CATEGORIES[restaurant?.cuisine] || ['General']
 
   const pendingOrders = orders.filter(o => o.status === 'Pending')
   const activeOrders = orders.filter(o => ['Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery'].includes(o.status))

@@ -46,13 +46,17 @@ frontend/ (port 5173)
                    │              ├─ /verify-email?token=&email= -> VerifyEmail
                    │              ├─ /forgot-password -> ForgotPassword (AuthShell)
                    │              ├─ /reset-password?token=&email= -> ResetPassword
+                   │              ├─ /terms -> Terms
+                   │              ├─ /privacy -> Privacy
                    │              ├─ / -> ProtectedRoute -> Home (map + filters + sort)
                    │              ├─ /restaurant/:id -> ProtectedRoute -> Restaurant (map)
                    │              ├─ /cart -> RoleRoute(customer) -> Cart (location picker → checkout)
                    │              ├─ /checkout -> RoleRoute(customer) -> Checkout (+ map + phone)
                    │              ├─ /orders -> RoleRoute(customer) -> OrderTracking (+ map)
-                    │              ├─ /owner -> RoleRoute(owner|rider) -> OwnerDashboard (Orders/Menu/Settings tabs, rider assignment)
-                    │              └─ /admin -> RoleRoute(admin) -> AdminPanel (restaurant CRUD only)
+                    │              ├─ /owner -> RoleRoute(owner|rider) -> OwnerDashboard (Role-based: Orders/Menu/Settings/Earnings for owners; Deliveries/Earnings for riders)
+                    │              ├─ /owner/menu -> RoleRoute(owner|rider) -> OwnerMenu
+                    │              ├─ /owner/orders -> RoleRoute(owner|rider) -> OwnerOrders
+                    │              └─ /admin -> RoleRoute(admin) -> AdminPanel (users, restaurants, stats)
 
 Vite dev server proxies /api and /uploads to http://localhost:5001 (see vite.config.js).
 
@@ -63,11 +67,11 @@ server/ (port 5001)
     │   ├── env.js               PORT, JWT_SECRET, JWT_EXPIRES_IN, FRONTEND_URL
     │   └── database.js          PrismaClient singleton with MySQL (mariadb) driver adapter;
     │                            allowPublicKeyRetrieval set for MySQL 8 caching_sha2_password over TCP
-    ├── middleware/
-    │   ├── auth.js              authenticate (JWT verify) + authorize (role check)
-    │   ├── csrf.js              CSRF token validation for state-changing requests
-    │   └── validate.js          validate() / validateOptional() field checkers; sanitizeString() XSS prevention;
-    │                            Password validation (8+ chars, upper, lower, digit, special); email/name/length validation
+    │   ├── middleware/
+    │   │   ├── auth.js          authenticate (JWT verify) + authorize (role check)
+    │   │   ├── csrf.js          CSRF token validation for state-changing requests
+    │   │   └── validate.js      validate() / validateOptional() field checkers; sanitizeString() XSS prevention;
+    │   │                        Password validation (8+ chars, upper, lower, digit, special); email/name/length validation
     ├── routes/
     │   ├── auth.js              POST /register (email normalized, unverified), POST /login (403 EMAIL_NOT_VERIFIED until verified), GET /verify-email, POST /resend-verification, POST /forgot-password, POST /reset-password, GET /me
     │   ├── restaurants.js       GET /, GET /:id/menu
@@ -75,11 +79,9 @@ server/ (port 5001)
     │   ├── cart.js              GET /, POST /sync, POST /add, DELETE /:id (authenticated, validates items)
     │   ├── notifications.js     GET /, GET /unread-count, PATCH /:id/read, POST /read-all
     │   ├── upload.js            POST /image (multer → /uploads, returns relative URL)
-    │   ├── owner.js             GET/POST/PATCH/DELETE /menu (+ image), GET /orders, GET /riders, PATCH /orders/:id/status (needs riderId), PATCH /orders/:id/rider
-    │   ├── rider.js             GET /deliveries, GET /my-deliveries, GET /earnings,
-    │   │                        PATCH /orders/:id/accept, PATCH /orders/:id/reject,
-    │   │                        PATCH /orders/:id/status, PATCH /location
-    │   └── admin.js             GET /users, GET /restaurants, POST/PATCH/DELETE /restaurants
+    │   ├── owner.js             GET/POST/PATCH/DELETE /menu (+ image), GET/POST/PATCH/DELETE /menu/categories, GET/PATCH /restaurant, GET /orders, GET /riders, PATCH /orders/:id/status (needs riderId to Confirm), PATCH /orders/:id/rider
+    │   ├── rider.js             GET /deliveries, GET /my-deliveries, GET /earnings, PATCH /orders/:id/accept, PATCH /orders/:id/reject, PATCH /orders/:id/status
+    │   └── admin.js             GET /stats, GET/PATCH /users, GET/POST/PATCH/DELETE /restaurants
     └── utils/
         ├── statusFlow.js        Role-based status transition validation
         ├── mailer.js            sendVerificationEmail + sendPasswordResetEmail (dev: print links to console)
@@ -160,18 +162,20 @@ src/
 │   ├── VerifyEmail.jsx           Consumes GET /auth/verify-email?token=, resend link UI.
 │   ├── ForgotPassword.jsx        Email/username form → POST /auth/forgot-password; shows generic success + devLink (dev only).
 │   ├── ResetPassword.jsx         Reads ?token=, new password + confirm with strength check → POST /auth/reset-password; invalid/missing token shows an inline warning.
-│   ├── Home.jsx                  Map showing all 7 restaurants + search by name/cuisine + cuisine filter chips (incl. Nepali) + sort.
-│   ├── Restaurant.jsx            Map showing restaurant location + menu items (with images) from API.
+│   ├── Terms.jsx                 Terms of Service page.
+│   ├── Privacy.jsx               Privacy Policy page.
+│   ├── Home.jsx                  Map showing all 7 restaurants + search by name/cuisine (debounced 300ms) + cuisine filter chips (incl. Nepali) + sort + retry on failure.
+│   ├── Restaurant.jsx            Map showing restaurant location + menu items (with images) from API grouped by dynamic category.
 │   ├── Cart.jsx                  Cart items with qty +/-/remove + total + empty state + delivery-location map picker → proceeds to checkout.
 │   ├── Checkout.jsx              Phone + address + map picker (prefilled from cart location) + inline validation. Sends delivery coords to API.
-│   ├── OrderTracking.jsx         5-step progress bar + map + real rider coords marker (when provided) + phone display; polls every 15s, paused when the tab is hidden, refetches on focus.
+│   ├── OrderTracking.jsx         5-step progress bar + map + real rider coords marker (when provided) + phone display; visibility-aware polling every 15s (pauses when hidden, refetches on focus).
 │   ├── owner/
-│   │   └── Dashboard.jsx         3-tab: Orders (accept with rider-select modal + decline + assign-rider dropdown, audio), Menu (category-grouped + add/edit), Settings.
-│   ├── rider/
-│   │   └── Dashboard.jsx         3-tab: Available (accept/pass, mini map), My Deliveries (status advance, live map), Earnings (daily/weekly/all-time).
+│   │   ├── Dashboard.jsx         Unified role dashboard: Owner tabs (Orders with dynamic transitions/rider assignment, Menu with dynamic category management, Settings, Earnings); Rider tabs (Deliveries with 'Start Delivery'/'Mark Delivered', Earnings).
+│   │   ├── MenuManagement.jsx    Standalone menu management view.
+│   │   └── Orders.jsx            Standalone owner orders view.
 │   └── admin/
-│       └── Panel.jsx             Restaurant CRUD only.
-├── App.jsx                       Route definitions (login, register, verify-email, forgot-password, reset-password + protected routes).
+│       └── Panel.jsx             Admin oversight: System stats, user role management, and restaurant CRUD.
+├── App.jsx                       Route definitions (login, register, verify-email, forgot-password, reset-password, terms, privacy + role-protected routes).
 ├── main.jsx                      ReactDOM.createRoot + BrowserRouter + Leaflet CSS.
 ├── e2e/
 │   └── login.spec.js             Playwright: 5 tests — login flow, wrong-password error, server-unreachable message, forgot-password reachability, reset-password invalid-link.
@@ -201,9 +205,9 @@ server/
 │   │   ├── cart.js               GET /api/cart, POST /api/cart/sync, POST /api/cart/add, DELETE /api/cart/:id
 │   │   ├── notifications.js      GET /api/notifications, GET /api/notifications/unread-count, PATCH /api/notifications/:id/read, POST /api/notifications/read-all
 │   │   ├── upload.js             POST /api/upload/image (multipart, max 5MB, jpeg/png/gif/webp) → { url: '/uploads/...' }
-│   │   ├── owner.js              GET /api/owner/restaurant, PATCH /api/owner/restaurant, GET /api/owner/orders, GET /api/owner/riders, PATCH /api/owner/orders/:id/status (needs riderId to Confirm), PATCH /api/owner/orders/:id/rider, /api/owner/menu CRUD (+ image)
-│   │   ├── rider.js              GET /api/rider/deliveries, GET /api/rider/my-deliveries, GET /api/rider/earnings, PATCH /api/rider/orders/:id/(accept|reject|status), PATCH /api/rider/location
-│   │   └── admin.js              GET /api/admin/users, GET/POST/PATCH/DELETE /api/admin/restaurants
+│   │   ├── owner.js              GET/PATCH /api/owner/restaurant, GET /api/owner/orders, GET /api/owner/riders, PATCH /api/owner/orders/:id/status (needs riderId to Confirm), PATCH /api/owner/orders/:id/rider, /api/owner/menu CRUD (+ image), /api/owner/menu/categories CRUD
+│   │   ├── rider.js              GET /api/rider/deliveries, GET /api/rider/my-deliveries, GET /api/rider/earnings, PATCH /api/rider/orders/:id/(accept|reject|status)
+│   │   └── admin.js              GET /api/admin/stats, GET/PATCH /api/admin/users, GET/POST/PATCH/DELETE /api/admin/restaurants
 │   └── utils/
 │       ├── statusFlow.js         FLOWS per role, getNextStatus, isValidTransition, TERMINAL_STATUSES
 │       ├── mailer.js             sendVerificationEmail + sendPasswordResetEmail — print dev links, send via Resend in production
@@ -359,18 +363,22 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 
 ### Owner
 
-| Method | Endpoint                       | Body                                          | Response                                                               |
-| ------ | ------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------- |
-| GET    | `/api/owner/restaurant`        | —                                             | `Restaurant`                                                           |
-| PATCH  | `/api/owner/restaurant`        | restaurant fields                             | `Restaurant`                                                           |
-| GET    | `/api/owner/orders`            | —                                             | `[ Order ]`                                                            |
-| PATCH  | `/api/owner/orders/:id/status` | `{ status, riderId? }`                        | `Order` — `riderId` is **required** to confirm (`Pending → Confirmed`) |
-| PATCH  | `/api/owner/orders/:id/rider`  | `{ riderId }`                                 | `Order` — (re)assign a rider to a non-terminal order                   |
-| GET    | `/api/owner/riders`            | —                                             | `[ { id, name, email } ]` — rider accounts for assignment              |
-| GET    | `/api/owner/menu`              | —                                             | `[ MenuItem ]`                                                         |
-| POST   | `/api/owner/menu`              | `{ name, price, category?, desc?, image? }`   | `MenuItem`                                                             |
-| PATCH  | `/api/owner/menu/:id`          | `{ name?, price?, category?, desc?, image? }` | `MenuItem`                                                             |
-| DELETE | `/api/owner/menu/:id`          | —                                             | `{ message }`                                                          |
+| Method | Endpoint                             | Body                                          | Response                                                               |
+| ------ | ------------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------- |
+| GET    | `/api/owner/restaurant`              | —                                             | `Restaurant`                                                           |
+| PATCH  | `/api/owner/restaurant`              | restaurant fields                             | `Restaurant`                                                           |
+| GET    | `/api/owner/orders`                  | —                                             | `[ Order ]`                                                            |
+| PATCH  | `/api/owner/orders/:id/status`       | `{ status, riderId? }`                        | `Order` — `riderId` is **required** to confirm (`Pending → Confirmed`) |
+| PATCH  | `/api/owner/orders/:id/rider`        | `{ riderId }`                                 | `Order` — (re)assign a rider to a non-terminal order                   |
+| GET    | `/api/owner/riders`                  | —                                             | `[ { id, name, email } ]` — rider accounts for assignment              |
+| GET    | `/api/owner/menu`                    | —                                             | `[ MenuItem ]`                                                         |
+| POST   | `/api/owner/menu`                    | `{ name, price, category?, desc?, image? }`   | `MenuItem`                                                             |
+| PATCH  | `/api/owner/menu/:id`                | `{ name?, price?, category?, desc?, image? }` | `MenuItem`                                                             |
+| DELETE | `/api/owner/menu/:id`                | —                                             | `{ message }`                                                          |
+| GET    | `/api/owner/menu/categories`         | —                                             | `[ string ]` (distinct category list for restaurant)                   |
+| POST   | `/api/owner/menu/categories`         | `{ name }`                                    | `201 { category }` (creates custom category, max 50 chars)             |
+| PATCH  | `/api/owner/menu/categories/:oldName`| `{ newName }`                                 | `{ message, newCategory }` (renames category across all items)         |
+| DELETE | `/api/owner/menu/categories/:name`   | —                                             | `{ message }` (removes category and all items within)                  |
 
 ### Rider
 
@@ -382,17 +390,18 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 | PATCH  | `/api/rider/orders/:id/accept` | —                         | `Order` (assigns rider, status→Out for Delivery)                                             |
 | PATCH  | `/api/rider/orders/:id/reject` | —                         | `{ message }` (returns to pending)                                                           |
 | PATCH  | `/api/rider/orders/:id/status` | `{ status }`              | `Order`                                                                                      |
-| PATCH  | `/api/rider/location`          | `{ latitude, longitude }` | `Delivery`                                                                                   |
 
 ### Admin
 
-| Method | Endpoint                     | Body              | Response         |
-| ------ | ---------------------------- | ----------------- | ---------------- |
-| GET    | `/api/admin/users`           | —                 | `[ User ]`       |
-| GET    | `/api/admin/restaurants`     | —                 | `[ Restaurant ]` |
-| POST   | `/api/admin/restaurants`     | restaurant fields | `Restaurant`     |
-| PATCH  | `/api/admin/restaurants/:id` | restaurant fields | `Restaurant`     |
-| DELETE | `/api/admin/restaurants/:id` | —                 | `{ message }`    |
+| Method | Endpoint                     | Body                      | Response                                                   |
+| ------ | ---------------------------- | ------------------------- | ---------------------------------------------------------- |
+| GET    | `/api/admin/stats`           | —                         | `{ users, restaurants, orders, revenue }`                  |
+| GET    | `/api/admin/users`           | —                         | `[ User ]`                                                 |
+| PATCH  | `/api/admin/users/:id`       | `{ role?, restaurantId? }`| `User` (updates user role or linked restaurant)            |
+| GET    | `/api/admin/restaurants`     | —                         | `[ Restaurant ]`                                           |
+| POST   | `/api/admin/restaurants`     | restaurant fields         | `Restaurant`                                               |
+| PATCH  | `/api/admin/restaurants/:id` | restaurant fields         | `Restaurant`                                               |
+| DELETE | `/api/admin/restaurants/:id` | —                         | `{ message }`                                              |
 
 ---
 
@@ -474,22 +483,32 @@ Emails are trimmed and lowercased both on the frontend (AuthContext) and backend
 ### Restaurant Images
 
 - **Schema** — `Restaurant.image` (String?) added via migration `add_image`.
-- **Placeholder URLs** — Each of the 6 restaurants has a `placehold.co` URL in seed data.
+- **Placeholder URLs** — Each of the 7 restaurants has a `placehold.co` URL in seed data.
 - **Display** — Thumbnail image shown on Home cards and Restaurant detail page.
 
-### Cuisine-Based Menu Categories
+### Dynamic Category Management
 
-When a restaurant owner edits their menu, the available categories auto-filter based on the restaurant's cuisine type. These are defined in `CUISINE_CATEGORIES` in `src/data/mock.js`:
+Restaurant menus feature dynamic category management instead of hardcoded cuisine categories:
 
-| Cuisine  | Categories                                       |
-| -------- | ------------------------------------------------ |
-| Italian  | Pizza, Pasta, Salad, Dessert, Beverage           |
-| American | Burger, Sandwich, Fries, Beverage, Dessert       |
-| Japanese | Sushi, Roll, Noodle, Appetizer, Dessert          |
-| Mexican  | Taco, Quesadilla, Nachos, Burrito, Beverage      |
-| Indian   | Curry, Bread, Rice, Appetizer, Dessert, Beverage |
-| Chinese  | Noodle, Rice, Dumpling, Appetizer, Soup          |
-| Nepali   | Momo, Curry, Rice, Dal Bhat, Appetizer, Beverage |
+- **Custom Categories** — Owners can create new custom categories (max 50 characters, trimmed, validated) directly from the Menu dashboard sidebar.
+- **Rename Categories** — Renaming a category (`PATCH /api/owner/menu/categories/:oldName`) updates all associated menu items automatically in a single atomic operation.
+- **Delete Categories** — Deleting a category (`DELETE /api/owner/menu/categories/:name`) cleans up the category and associated items with explicit UI confirmation.
+- **Category Management Panel** — 4-column layout in Owner Dashboard (3 columns for categorized menu items, 1 column for category management sidebar with live item counts and quick-edit controls).
+- **Customer View** — Customer restaurant menu views dynamically group menu items under their respective custom categories.
+
+### Rider Delivery Management & Owner Order Visibility
+
+- **Rider Deliveries View** — Riders have a dedicated **Deliveries** tab displaying assigned active orders (`Ready for Pickup` and `Out for Delivery`) with restaurant logos, customer addresses, phone numbers, and delivery statistics.
+- **Action Buttons** — Quick lifecycle actions: **Start Delivery** (`Ready for Pickup → Out for Delivery`) and **Mark Delivered** (`Out for Delivery → Delivered` with confirmation dialog).
+- **Owner Visibility** — Active orders in the Owner dashboard display the assigned rider with a `🚴 Rider: [Name]` badge and color-coded status pills.
+- **Earnings Tab** — Both owners and riders have access to their earnings breakdown (daily, weekly, and total metrics).
+
+### Dynamic Order Status Transitions
+
+- **Flexible Workflow** — `getAllowedTransitions()` calculates valid status options per role.
+- **Multi-Button Actions** — Instead of a single sequential button, owners and riders see explicit transition buttons for each valid next status.
+- **Pending Actions** — Pending orders present distinct **Accept** (opens rider selection modal) and **Decline** (red reject button) controls.
+- **Customer Notifications** — Status transitions trigger real-time in-app notifications and browser push alerts for customers.
 
 ### OSRM Road Routing
 
@@ -614,32 +633,35 @@ A user story is **Done** only when all of the following are true:
 
 ### Product Backlog (prioritized)
 
-| ID    | User story                                                                                                 | Priority | Status             |
-| ----- | ---------------------------------------------------------------------------------------------------------- | -------- | ------------------ |
-| US-01 | As a customer, I want to enter my delivery location on the Cart page so that I can go straight to checkout | High     | ✅ Done (Sprint 6) |
-| US-02 | As a new user, I want to verify my email before logging in so that my account is secure                    | High     | ✅ Done (Sprint 6) |
-| US-03 | As a customer, I want a notification when the restaurant accepts or rejects my order                       | High     | ✅ Done (Sprint 6) |
-| US-04 | As an owner, I want to upload images for my restaurant and menu items                                      | High     | ✅ Done (Sprint 6) |
-| US-05 | As a customer, I want the order tracker to update live so that I don't have to refresh                     | High     | 🆕 Backlog         |
-| US-06 | As a customer, I want a 3-step checkout wizard with live validation                                        | Medium   | 🆕 Backlog         |
-| US-07 | As a user, I want dark mode and reduced-motion support                                                     | Medium   | 🆕 Backlog         |
-| US-08 | As an owner, I want to manage restaurant linking to my account                                             | Low      | 🆕 Backlog         |
-| US-09 | As a user who forgot my password, I want to reset it via email so that I can get back into my account      | High     | ✅ Done (Sprint 9) |
-| US-10 | As an owner, I want to assign a specific rider to each order so that deliveries are dispatched             | High     | ✅ Done (Sprint 9) |
+| ID    | User story                                                                                                 | Priority | Status              |
+| ----- | ---------------------------------------------------------------------------------------------------------- | -------- | ------------------- |
+| US-01 | As a customer, I want to enter my delivery location on the Cart page so that I can go straight to checkout | High     | ✅ Done (Sprint 6)  |
+| US-02 | As a new user, I want to verify my email before logging in so that my account is secure                    | High     | ✅ Done (Sprint 6)  |
+| US-03 | As a customer, I want a notification when the restaurant accepts or rejects my order                       | High     | ✅ Done (Sprint 6)  |
+| US-04 | As an owner, I want to upload images for my restaurant and menu items                                      | High     | ✅ Done (Sprint 6)  |
+| US-05 | As a customer, I want the order tracker to update live so that I don't have to refresh                     | High     | ✅ Done (Sprint 8)  |
+| US-06 | As a customer, I want a 3-step checkout wizard with live validation                                        | Medium   | 🆕 Backlog          |
+| US-07 | As a user, I want dark mode and reduced-motion support                                                     | Medium   | 🆕 Backlog          |
+| US-08 | As an owner, I want to manage restaurant linking to my account                                             | Low      | 🆕 Backlog          |
+| US-09 | As a user who forgot my password, I want to reset it via email so that I can get back into my account      | High     | ✅ Done (Sprint 9)  |
+| US-10 | As an owner, I want to assign a specific rider to each order so that deliveries are dispatched             | High     | ✅ Done (Sprint 9)  |
+| US-11 | As an owner, I want to create, rename, and delete custom menu categories dynamically                      | High     | ✅ Done (Sprint 10) |
+| US-12 | As a rider, I want dedicated delivery management with one-click status updates and earnings metrics        | High     | ✅ Done (Sprint 10) |
 
 ### Sprint History
 
-| Sprint | Goal                   | Delivered                                                                                                                                                                                                                                      |
-| ------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1      | Foundation             | Express + Prisma + MySQL API, JWT httpOnly auth, CORS, CSRF                                                                                                                                                                                    |
-| 2      | Discovery              | Home page with map, search, cuisine filters, sort, pagination                                                                                                                                                                                  |
-| 3      | Ordering               | Restaurant/menu pages, cart (localStorage), mock payment checkout                                                                                                                                                                              |
-| 4      | Fulfillment            | Role dashboards: owner (orders/menu/settings), rider (deliveries/earnings), admin CRUD                                                                                                                                                         |
-| 5      | Reliability            | Security checklist, account lockout, rate limits, accessibility audit, category/subcategory menu system, docs                                                                                                                                  |
-| 6      | Engagement (current)   | **Delivery location → checkout (US-01), email verification (US-02), in-app + browser notifications (US-03), image uploads (US-04)**                                                                                                            |
-| 7      | Polish (planned)       | Tracking polling, checkout wizard, dark mode, performance/lazy routes                                                                                                                                                                          |
-| 8      | Hardening (bug fixes)  | Visibility-aware order tracking polling, real rider coords (no simulated rider), error surfacing (Home retry, Checkout toast, OSRM route note), debounced restaurant search, dismissible + capped toasts                                       |
-| 9      | Auth + dispatch (done) | Password reset via email (forgot-password/reset-password, single-use hashed 30-min tokens), owner-driven rider dispatch (rider list + per-order assignment), Vite proxy to backend, relative upload URLs, 401 redirect guard, EADDRINUSE guard |
+| Sprint | Goal                     | Delivered                                                                                                                                                                                                                                      |
+| ------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | Foundation               | Express + Prisma + MySQL API, JWT httpOnly auth, CORS, CSRF                                                                                                                                                                                    |
+| 2      | Discovery                | Home page with map, search, cuisine filters, sort, pagination                                                                                                                                                                                  |
+| 3      | Ordering                 | Restaurant/menu pages, cart (localStorage), mock payment checkout                                                                                                                                                                              |
+| 4      | Fulfillment              | Role dashboards: owner (orders/menu/settings), rider (deliveries/earnings), admin CRUD                                                                                                                                                         |
+| 5      | Reliability              | Security checklist, account lockout, rate limits, accessibility audit, category/subcategory menu system, docs                                                                                                                                  |
+| 6      | Engagement               | Delivery location → checkout (US-01), email verification (US-02), in-app + browser notifications (US-03), image uploads (US-04)                                                                                                              |
+| 7      | Polish                   | UI polish, component feedback states, design audit, and road-route integration                                                                                                                                                                 |
+| 8      | Hardening (bug fixes)    | Visibility-aware order tracking polling (US-05), real rider coords (no simulated rider), error surfacing (Home retry, Checkout toast, OSRM route note), debounced restaurant search, dismissible + capped toasts                               |
+| 9      | Auth + dispatch          | Password reset via email (US-09), owner-driven rider dispatch (US-10, rider list + per-order assignment), Vite proxy to backend, relative upload URLs, 401 redirect guard, EADDRINUSE guard                                                      |
+| 10     | Workflow & categories (current) | Dynamic category management (US-11: GET/POST/PATCH/DELETE /owner/menu/categories, custom categories, rename, delete), rider delivery workflow (US-12: 'Start Delivery', 'Mark Delivered', stats), dynamic order transitions, demo data update |
 
 ### Velocity & Quality
 
@@ -662,8 +684,8 @@ A user story is **Done** only when all of the following are true:
 | --------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | App shell             | Providers + global layout + route table       | `ErrorBoundary`, `AuthProvider`, `ToastProvider`, `NotificationProvider`, `Navbar`, `<Routes>`                      |
 | Route guards          | Authorization at route level                  | `ProtectedRoute` (logged-in), `RoleRoute` (role check)                                                              |
-| Pages                 | Route-level views / screens                   | `Login`, `Register`, `VerifyEmail`, `Home`, `Cart`, `Checkout`, `owner/Dashboard`, `rider/Dashboard`, `admin/Panel` |
-| Reusable components   | Shared building blocks used by many pages     | `Navbar`, `MapView`, `ImageUpload`, `LoadingSkeleton`, `EmptyState`, `ErrorBoundary`                                |
+| Pages                 | Route-level views / screens                   | `Login`, `Register`, `VerifyEmail`, `ForgotPassword`, `ResetPassword`, `Terms`, `Privacy`, `Home`, `Restaurant`, `Cart`, `Checkout`, `OrderTracking`, `owner/Dashboard`, `admin/Panel` |
+| Reusable components   | Shared building blocks used by many pages     | `Navbar`, `MapView`, `ImageUpload`, `LoadingSkeleton`, `EmptyState`, `ErrorBoundary`, `AuthShell`                          |
 | Context providers     | Cross-cutting shared state (no prop drilling) | `AuthContext`, `ToastContext`, `NotificationContext`                                                                |
 | Services / API client | Data access layer                             | `api/client.js`, `services/orders.js`                                                                               |
 
@@ -682,6 +704,8 @@ App
                ├─ /verify-email     → VerifyEmail
                ├─ /forgot-password  → ForgotPassword (AuthShell)
                ├─ /reset-password   → ResetPassword
+               ├─ /terms            → Terms
+               ├─ /privacy          → Privacy
                ├─ /                 → ProtectedRoute → Home
                ├─ /restaurant/:id   → ProtectedRoute → Restaurant
                ├─ /cart             → RoleRoute(customer) → Cart → MapView

@@ -1,6 +1,6 @@
 # Bug Log — Sprint 8 Hardening
 
-This log records the five bugs fixed during the Sprint 8 hardening pass (all in `food-delivery-frontend`), along with the fix applied, files touched, and the tests added. All changes are on branch `yujin`.
+This log records the five bugs fixed during the Sprint 8 hardening pass (all in `food-delivery-frontend`), along with the fix applied, files touched, and the tests added. All changes are merged into `main`.
 
 ## Bug 1 — Order tracking polled even when the tab was hidden
 

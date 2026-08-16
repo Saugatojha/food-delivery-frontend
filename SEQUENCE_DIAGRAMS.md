@@ -6,10 +6,10 @@
 
 | Actor | Role | Accesses |
 |---|---|---|
-| Customer | Places orders, tracks delivery | `/`, `/restaurant/:id`, `/cart`, `/checkout`, `/order-tracking/:id` |
-| Owner | Manages restaurant + menu, confirms orders | `/owner` (Orders / Menu / Settings) |
-| Rider | Accepts deliveries, updates status + location, views earnings | `/owner` (shared owner dashboard — Orders / Menu / Settings) |
-| Admin | Full restaurant CRUD, app oversight | `/admin` |
+| Customer | Places orders, tracks delivery | `/`, `/restaurant/:id`, `/cart`, `/checkout`, `/orders` |
+| Owner | Manages restaurant + menu + dynamic categories, confirms orders | `/owner` (Orders / Menu / Settings / Earnings) |
+| Rider | Accepts deliveries, manages active delivery status, views earnings | `/owner` (Deliveries / Earnings) |
+| Admin | User role management, restaurant CRUD, system stats | `/admin` |
 | Backend | Express + Prisma (MySQL 8) | `/api/*` |
 
 ---
@@ -259,19 +259,19 @@ sequenceDiagram
     participant S as Backend (Express)
     participant D as Database (Prisma)
 
-    C->>F: Open /order-tracking/:id (poll every N seconds)
+    C->>F: Open /orders (polls every 15s, paused when tab hidden)
     F->>S: GET /api/orders/tracking/:id (JWT)
     S->>D: order.findUnique + restaurant + delivery (riderLat/Lng)
     D-->>S: order status + rider coordinates
     S-->>F: 200 { status, delivery: { riderLatitude, riderLongitude } }
-    F-->>C: Status badge + live map (restaurant → rider → delivery point)
+    F-->>C: Status progress bar + live map (restaurant → rider GPS marker → delivery point)
 
-    Note over C,D: Rider PATCH /api/rider/location updates riderLat/Lng<br/>which the next poll picks up automatically.
+    Note over C,D: OrderTracking automatically polls /api/orders/tracking/:id every 15s<br/>(pauses when tab hidden, refetches on focus).
 ```
 
 ---
 
-## 6. Menu Management (Owner)
+## 6. Menu & Dynamic Category Management (Owner)
 
 ```mermaid
 sequenceDiagram
@@ -284,33 +284,36 @@ sequenceDiagram
     F->>S: GET /api/owner/menu
     S->>D: menuItem.findMany (restaurantId)
     D-->>S: items
-    S-->>F: 200 items
-    F->>F: Group by category → subCategory
-    F-->>O: Menu list
+    F->>S: GET /api/owner/menu/categories
+    S->>D: menuItem.findMany (distinct category)
+    D-->>S: categories
+    S-->>F: 200 items + categories
+    F->>F: Group items by dynamic category
+    F-->>O: Categorized menu list + category sidebar
 
-    alt Add item
-        O->>F: Click "Add Item"
-        F-->>O: Form (name, price, cuisine-based category dropdown, subCategory dropdown, image upload)
-        O->>F: Submit
-        F->>S: POST /api/owner/menu { name, price, category, subCategory, desc, image }
-        S->>D: menuItem.create (defaults "General" if omitted)
-        D-->>S: item
-        S-->>F: 201 item
-        F-->>O: Item appears in list
-    else Edit item
-        O->>F: Edit existing item
-        F->>S: PATCH /api/owner/menu/:id { name, price, category, subCategory, desc, image }
-        S->>D: menuItem.update
-        D-->>S: updated item
-        S-->>F: 200 updated
-        F-->>O: Item updated
-    else Delete item
-        O->>F: Delete item
-        F->>S: DELETE /api/owner/menu/:id
-        S->>D: menuItem.delete
-        D-->>S: ok
+    alt Add category
+        O->>F: Enter new category name → Add
+        F->>S: POST /api/owner/menu/categories { name }
+        S-->>F: 201 { category }
+        F-->>O: New category available
+    else Rename category
+        O->>F: Rename category
+        F->>S: PATCH /api/owner/menu/categories/:oldName { newName }
+        S->>D: menuItem.updateMany (category: newName)
+        S-->>F: 200 { message, newCategory }
+        F-->>O: Updated category across items
+    else Delete category
+        O->>F: Delete category (confirm)
+        F->>S: DELETE /api/owner/menu/categories/:name
+        S->>D: menuItem.deleteMany (category: name)
         S-->>F: 200 { message }
-        F-->>O: Item removed
+        F-->>O: Category and items removed
+    else Add/Edit item
+        O->>F: Form (name, price, category, desc, image)
+        F->>S: POST/PATCH /api/owner/menu
+        S->>D: menuItem create/update
+        S-->>F: 200/201 item
+        F-->>O: Refreshed menu list
     end
 
     Note over O,D: Image upload path (before saving):<br/>F->>S: POST /api/upload/image (multipart)<br/>S->>S: multer → server/uploads/<br/>S-->>F: { url } → F includes url in menu body
