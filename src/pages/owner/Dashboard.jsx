@@ -50,6 +50,7 @@ export default function OwnerDashboard() {
   const [newCategory, setNewCategory] = useState('')
   const [customCategories, setCustomCategories] = useState([])
   const [newRider, setNewRider] = useState({ name: '', email: '', password: '' })
+  const [newSubCategory, setNewSubCategory] = useState({ category: '', name: '' })
 
   const orderCountRef = useRef(0)
 
@@ -201,6 +202,29 @@ export default function OwnerDashboard() {
       fetchData()
     } catch (err) {
       showToast(err?.response?.data?.error || 'Failed to remove rider', 'error')
+    }
+  }
+
+  const addSubCategory = async (e) => {
+    e.preventDefault()
+    if (!newSubCategory.name.trim() || !newSubCategory.category) return
+    try {
+      await api.post('/owner/menu/subcategories', { name: newSubCategory.name.trim(), category: newSubCategory.category })
+      setNewSubCategory(p => ({ ...p, name: '' }))
+      showToast('Subcategory added', 'success')
+      fetchCategories()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to add subcategory', 'error')
+    }
+  }
+
+  const deleteSubCategory = async (subId) => {
+    try {
+      await api.delete(`/owner/menu/subcategories/${subId}`)
+      showToast('Subcategory deleted', 'success')
+      fetchCategories()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to delete subcategory', 'error')
     }
   }
 
@@ -667,6 +691,30 @@ export default function OwnerDashboard() {
               
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-600 mb-2 font-medium">Categories ({customCategories.length})</p>
+
+                <form onSubmit={addSubCategory} className="mb-3">
+                  <select
+                    className="border p-1.5 rounded w-full mb-1.5 text-xs"
+                    value={newSubCategory.category}
+                    onChange={e => setNewSubCategory(p => ({ ...p, category: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select category</option>
+                    {customCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      className="border p-1.5 rounded flex-1 text-xs"
+                      placeholder="New subcategory"
+                      value={newSubCategory.name}
+                      onChange={e => setNewSubCategory(p => ({ ...p, name: e.target.value }))}
+                      required
+                    />
+                    <button type="submit" className="bg-orange-500 text-white px-2 py-1 rounded text-xs whitespace-nowrap">Add</button>
+                  </div>
+                </form>
+
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {customCategories.map(cat => {
                     const itemCount = menuItems.filter(i => i.category === cat.name).length
@@ -678,8 +726,14 @@ export default function OwnerDashboard() {
                         {cat.subCategories.length > 0 && (
                           <div className="mt-1 ml-2 flex flex-wrap gap-1">
                             {cat.subCategories.map(sub => (
-                              <span key={sub} className="inline-flex items-center bg-white border rounded px-1.5 py-0.5 text-[10px]">
-                                {sub}
+                              <span key={sub.id || sub.name || sub} className="inline-flex items-center bg-white border rounded px-1.5 py-0.5 text-[10px] gap-1">
+                                {sub.name || sub}
+                                <button
+                                  onClick={() => setConfirmAction({ type: 'deleteSubCategory', subId: sub.id, subName: sub.name || sub, catName: cat.name })}
+                                  className="text-red-400 hover:text-red-600 font-bold leading-none"
+                                >
+                                  ×
+                                </button>
                               </span>
                             ))}
                           </div>
@@ -704,7 +758,7 @@ export default function OwnerDashboard() {
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={editingItem.subCategory} onChange={e => setEditingItem(p => ({ ...p, subCategory: e.target.value }))}>
                   <option value="">Select subcategory</option>
-                  {(customCategories.find(c => c.name === editingItem.category)?.subCategories || []).map(s => <option key={s} value={s}>{s}</option>)}
+                  {(customCategories.find(c => c.name === editingItem.category)?.subCategories || []).map(s => <option key={s.name || s} value={s.name || s}>{s.name || s}</option>)}
                 </select>
                 <input className="border p-2 rounded w-full mb-2 text-sm" type="number" step="0.01" placeholder="Price (NPR)"
                   value={editingItem.price} onChange={e => setEditingItem(p => ({ ...p, price: e.target.value }))} required />
@@ -732,7 +786,7 @@ export default function OwnerDashboard() {
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={newItem.subCategory} onChange={e => setNewItem(p => ({ ...p, subCategory: e.target.value }))}>
                   <option value="">Select subcategory</option>
-                  {(customCategories.find(c => c.name === newItem.category)?.subCategories || []).map(s => <option key={s} value={s}>{s}</option>)}
+                  {(customCategories.find(c => c.name === newItem.category)?.subCategories || []).map(s => <option key={s.name || s} value={s.name || s}>{s.name || s}</option>)}
                 </select>
                 <input className="border p-2 rounded w-full mb-2 text-sm" type="number" step="0.01" placeholder="Price (NPR)"
                   value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))} required />
@@ -955,6 +1009,18 @@ export default function OwnerDashboard() {
                     className="border px-3 py-1.5 rounded text-sm">Cancel</button>
                   <button onClick={() => { removeRider(confirmAction.riderId, confirmAction.riderName); setConfirmAction(null) }}
                     className="bg-red-500 text-white px-3 py-1.5 rounded text-sm">Remove</button>
+                </div>
+              </>
+            )}
+            {confirmAction.type === 'deleteSubCategory' && (
+              <>
+                <p className="font-semibold mb-2">Delete subcategory "{confirmAction.subName}"?</p>
+                <p className="text-sm text-gray-500 mb-4">Menu items in "{confirmAction.catName} &gt; {confirmAction.subName}" will be moved to "General".</p>
+                <div className="flex gap-3 justify-end">
+                  <button onClick={() => setConfirmAction(null)}
+                    className="border px-3 py-1.5 rounded text-sm">Cancel</button>
+                  <button onClick={() => { deleteSubCategory(confirmAction.subId); setConfirmAction(null) }}
+                    className="bg-red-500 text-white px-3 py-1.5 rounded text-sm">Delete</button>
                 </div>
               </>
             )}

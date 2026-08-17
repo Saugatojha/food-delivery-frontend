@@ -49,15 +49,15 @@ export default function Navbar() {
   }, [])
 
   return (
-    <nav className="bg-orange-500 text-white px-4 sm:px-6 py-3 flex items-center justify-between">
-      <Link to={user ? '/' : '/login'} className={`flex items-center ${FOCUS_RING}`} aria-label="Home">
+    <nav className="bg-white border-b border-gray-200 text-gray-800 px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm">
+      <Link to={user ? '/' : '/login'} className={`flex items-center gap-2 ${FOCUS_RING}`} aria-label="Home">
         <img src="/smartserve.png" alt="Smart Serve" className="h-8 w-auto" />
       </Link>
 
       {user && (
         <>
           <button
-            className={`sm:hidden text-white text-2xl leading-none ${FOCUS_RING}`}
+            className={`sm:hidden text-gray-600 text-2xl leading-none ${FOCUS_RING}`}
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
@@ -65,9 +65,9 @@ export default function Navbar() {
             {menuOpen ? '✕' : '☰'}
           </button>
 
-          <div className={`${menuOpen ? 'flex' : 'hidden'} sm:flex absolute sm:static top-14 left-0 right-0 bg-orange-500 sm:bg-transparent flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center text-sm sm:text-base p-4 sm:p-0 z-50 shadow-lg sm:shadow-none`}>
+          <div className={`${menuOpen ? 'flex' : 'hidden'} sm:flex absolute sm:static top-14 left-0 right-0 bg-white sm:bg-transparent flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center text-sm sm:text-base p-4 sm:p-0 z-50 shadow-lg sm:shadow-none border-b sm:border-0`}>
             {links.map(l => (
-              <Link key={l.to} to={l.to} className={`relative ${FOCUS_RING}`} onClick={() => setMenuOpen(false)}>
+              <Link key={l.to} to={l.to} className={`relative text-gray-700 hover:text-orange-600 font-medium transition ${FOCUS_RING}`} onClick={() => setMenuOpen(false)}>
                 {l.label}
                 {l.label === 'Cart' && cartQty > 0 && (
                   <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
@@ -76,11 +76,11 @@ export default function Navbar() {
                 )}
               </Link>
             ))}
-            <span className="hidden sm:inline text-orange-200">|</span>
+            <span className="hidden sm:inline text-gray-300">|</span>
             <div className="relative" ref={bellRef}>
               <button
                 onClick={toggle}
-                className={`relative text-white p-1.5 rounded-full hover:bg-orange-600 ${FOCUS_RING}`}
+                className={`relative text-gray-600 p-1.5 rounded-full hover:bg-gray-100 ${FOCUS_RING}`}
                 aria-label={open ? 'Close notifications' : 'Open notifications'}
                 aria-expanded={open}
               >
@@ -121,8 +121,8 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-            <span className="text-orange-100 text-sm">{user.name}</span>
-            <button onClick={logout} className={`bg-white text-orange-700 px-3 py-1.5 rounded text-sm font-medium ${FOCUS_RING}`} aria-label="Logout">
+            <span className="text-gray-600 text-sm font-medium">{user.name}</span>
+            <button onClick={logout} className={`bg-orange-500 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-orange-600 transition ${FOCUS_RING}`} aria-label="Logout">
               Logout
             </button>
           </div>

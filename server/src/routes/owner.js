@@ -194,10 +194,10 @@ router.get('/menu/categories', async (req, res) => {
 
     const cats = await prisma.category.findMany({
       where: { restaurantId: restaurant.id },
-      include: { subCategories: { select: { name: true }, orderBy: { name: 'asc' } } },
+      include: { subCategories: { select: { id: true, name: true }, orderBy: { name: 'asc' } } },
       orderBy: { name: 'asc' },
     })
-    res.json(cats.map(c => ({ name: c.name, subCategories: c.subCategories.map(s => s.name) })))
+    res.json(cats.map(c => ({ name: c.name, subCategories: c.subCategories })))
   } catch (err) {
     serverError(res, 'Failed to fetch categories')
   }
