@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatPrice } from '../../data/mock'
 import { useToast } from '../../context/ToastContext'
-import ImageUpload from '../../components/ImageUpload'
 import api from '../../api/client'
 
 export default function MenuManagement() {
@@ -9,7 +8,7 @@ export default function MenuManagement() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [newItem, setNewItem] = useState({ name: '', price: '', desc: '', image: '' })
+  const [newItem, setNewItem] = useState({ name: '', price: '', desc: '' })
 
   useEffect(() => {
     api.get('/owner/menu').then(({ data }) => {
@@ -21,9 +20,9 @@ export default function MenuManagement() {
     e.preventDefault()
     if (!newItem.name || !newItem.price) return showToast('Name and price required', 'error')
     try {
-      const { data } = await api.post('/owner/menu', { name: newItem.name, price: Number(newItem.price), desc: newItem.desc, image: newItem.image || undefined })
+      const { data } = await api.post('/owner/menu', { name: newItem.name, price: Number(newItem.price), desc: newItem.desc })
       setItems(prev => [...prev, data])
-      setNewItem({ name: '', price: '', desc: '', image: '' })
+      setNewItem({ name: '', price: '', desc: '' })
       setShowForm(false)
       showToast('Item added to menu', 'success')
     } catch {
@@ -58,9 +57,6 @@ export default function MenuManagement() {
           <input className="border p-2 rounded text-sm" type="number" placeholder="Price (Rs)" value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))} required />
           <input className="border p-2 rounded text-sm" placeholder="Description" value={newItem.desc} onChange={e => setNewItem(p => ({ ...p, desc: e.target.value }))} />
           <button type="submit" className="bg-green-600 text-white p-2 rounded text-sm">Add</button>
-          <div className="sm:col-span-4">
-            <ImageUpload value={newItem.image || ''} onChange={(url) => setNewItem(p => ({ ...p, image: url }))} label="Item image" />
-          </div>
         </form>
       )}
 
@@ -68,7 +64,6 @@ export default function MenuManagement() {
         {items.map(item => (
           <div key={item.id} className="border rounded-lg p-4 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              {item.image && <img src={item.image} alt={item.name} className="w-12 h-12 rounded-lg object-cover" />}
               <div>
                 <h3 className="font-semibold">{item.name}</h3>
                 {item.desc && <p className="text-sm text-gray-500">{item.desc}</p>}

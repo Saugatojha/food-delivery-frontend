@@ -764,9 +764,6 @@ export default function OwnerDashboard() {
                   value={editingItem.price} onChange={e => setEditingItem(p => ({ ...p, price: e.target.value }))} required />
                 <textarea className="border p-2 rounded w-full mb-2 text-sm" placeholder="Description"
                   value={editingItem.desc || ''} onChange={e => setEditingItem(p => ({ ...p, desc: e.target.value }))} />
-                <div className="mb-3">
-                  <ImageUpload value={editingItem.image || ''} onChange={(url) => setEditingItem(p => ({ ...p, image: url }))} label="Item image" />
-                </div>
                 <div className="flex gap-2">
                   <button type="submit" className="bg-orange-500 text-white px-3 py-1.5 rounded text-sm flex-1">Save</button>
                   <button type="button" onClick={() => setEditingItem(null)}
@@ -792,9 +789,6 @@ export default function OwnerDashboard() {
                   value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))} required />
                 <textarea className="border p-2 rounded w-full mb-2 text-sm" placeholder="Description (optional)"
                   value={newItem.desc} onChange={e => setNewItem(p => ({ ...p, desc: e.target.value }))} />
-                <div className="mb-3">
-                  <ImageUpload value={newItem.image || ''} onChange={(url) => setNewItem(p => ({ ...p, image: url }))} label="Item image" />
-                </div>
                 <button type="submit" className="w-full bg-orange-500 text-white px-3 py-1.5 rounded text-sm font-medium">Add Item</button>
               </form>
             )}
