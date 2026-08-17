@@ -44,9 +44,10 @@ export default function App() {
               <Route path="/cart" element={<RoleRoute roles={['customer']}><Cart /></RoleRoute>} />
               <Route path="/checkout" element={<RoleRoute roles={['customer']}><Checkout /></RoleRoute>} />
               <Route path="/orders" element={<RoleRoute roles={['customer']}><OrderTracking /></RoleRoute>} />
-              <Route path="/owner" element={<RoleRoute roles={['owner', 'rider']}><OwnerDashboard /></RoleRoute>} />
-              <Route path="/owner/menu" element={<RoleRoute roles={['owner', 'rider']}><OwnerMenu /></RoleRoute>} />
-              <Route path="/owner/orders" element={<RoleRoute roles={['owner', 'rider']}><OwnerOrders /></RoleRoute>} />
+              <Route path="/owner" element={<RoleRoute roles={['owner']}><OwnerDashboard /></RoleRoute>} />
+              <Route path="/owner/menu" element={<RoleRoute roles={['owner']}><OwnerMenu /></RoleRoute>} />
+              <Route path="/owner/orders" element={<RoleRoute roles={['owner']}><OwnerOrders /></RoleRoute>} />
+              <Route path="/rider" element={<RoleRoute roles={['rider']}><OwnerDashboard /></RoleRoute>} />
               <Route path="/admin" element={<RoleRoute roles={['admin']}><AdminPanel /></RoleRoute>} />
             </Routes>
             </main>

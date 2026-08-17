@@ -8,7 +8,7 @@ const { notifyCustomer } = require('../utils/notify')
 
 const router = express.Router()
 
-router.use(authenticate, authorize('rider', 'owner'))
+router.use(authenticate, authorize('rider'))
 
 async function canManageOrder(order, userId) {
   const restaurant = await prisma.restaurant.findUnique({ where: { id: order.restaurantId } })

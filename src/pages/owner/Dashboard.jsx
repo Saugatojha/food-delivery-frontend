@@ -49,6 +49,7 @@ export default function OwnerDashboard() {
   const [editingCategory, setEditingCategory] = useState(null)
   const [newCategory, setNewCategory] = useState('')
   const [customCategories, setCustomCategories] = useState([])
+  const [newRider, setNewRider] = useState({ name: '', email: '', password: '' })
 
   const orderCountRef = useRef(0)
 
@@ -179,6 +180,29 @@ export default function OwnerDashboard() {
       })
     }
   }, [restaurant])
+
+  const addRider = async (e) => {
+    e.preventDefault()
+    if (!newRider.name || !newRider.email || !newRider.password) return
+    try {
+      await api.post('/owner/riders', newRider)
+      setNewRider({ name: '', email: '', password: '' })
+      showToast('Rider added', 'success')
+      fetchData()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to add rider', 'error')
+    }
+  }
+
+  const removeRider = async (riderId, riderName) => {
+    try {
+      await api.delete(`/owner/riders/${riderId}`)
+      showToast(`${riderName} removed from restaurant`, 'success')
+      fetchData()
+    } catch (err) {
+      showToast(err?.response?.data?.error || 'Failed to remove rider', 'error')
+    }
+  }
 
   const saveSettings = async (e) => {
     e.preventDefault()
@@ -315,7 +339,7 @@ export default function OwnerDashboard() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{isRider ? 'My Deliveries' : restaurant?.name || 'Owner Dashboard'}</h1>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          {(isRider ? ['deliveries', 'earnings'] : ['orders', 'menu', 'settings', 'earnings']).map(t => (
+          {(isRider ? ['deliveries', 'earnings'] : ['orders', 'menu', 'riders', 'settings', 'earnings']).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded text-sm font-medium capitalize ${tab === t ? 'bg-white shadow text-orange-600' : 'text-gray-600'}`}>
               {t}
@@ -713,6 +737,40 @@ export default function OwnerDashboard() {
         </div>
       )}
 
+      {tab === 'riders' && !isRider && (
+        <div className="max-w-2xl">
+          <h2 className="font-semibold text-lg mb-3">Your Riders</h2>
+          {riders.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">No riders assigned to your restaurant yet.</p>
+          ) : (
+            <div className="space-y-2 mb-6">
+              {riders.map(r => (
+                <div key={r.id} className="border rounded-lg p-3 bg-white flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">{r.name}</p>
+                    <p className="text-xs text-gray-500">{r.email}</p>
+                  </div>
+                  <button
+                    onClick={() => setConfirmAction({ type: 'removeRider', riderId: r.id, riderName: r.name })}
+                    className="text-red-500 text-sm hover:underline">Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <form onSubmit={addRider} className="border rounded-lg p-4 bg-white">
+            <h3 className="font-semibold mb-3 text-sm">Add Rider</h3>
+            <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Name"
+              value={newRider.name} onChange={e => setNewRider(p => ({ ...p, name: e.target.value }))} required />
+            <input className="border p-2 rounded w-full mb-2 text-sm" type="email" placeholder="Email"
+              value={newRider.email} onChange={e => setNewRider(p => ({ ...p, email: e.target.value }))} required />
+            <input className="border p-2 rounded w-full mb-2 text-sm" type="password" placeholder="Password"
+              value={newRider.password} onChange={e => setNewRider(p => ({ ...p, password: e.target.value }))} required />
+            <button type="submit" className="w-full bg-orange-500 text-white px-3 py-1.5 rounded text-sm font-medium">Add Rider</button>
+          </form>
+        </div>
+      )}
+
       {tab === 'settings' && !editingSettings && !isRider && (
         <div className="border rounded-lg p-4 bg-white">
           <div className="flex justify-between items-center mb-4">
@@ -873,7 +931,19 @@ export default function OwnerDashboard() {
                   <button onClick={() => setConfirmAction(null)}
                     className="border px-3 py-1.5 rounded text-sm">Cancel</button>
                   <button onClick={() => deleteCategory(confirmAction.categoryName)}
-                    className="bg-red-500 text-white px-4 py-1.5 rounded text-sm">Delete Category</button>
+                    className="bg-red-500 text-white px-3 py-1.5 rounded text-sm">Delete Category</button>
+                </div>
+              </>
+            )}
+            {confirmAction.type === 'removeRider' && (
+              <>
+                <p className="font-semibold mb-2">Remove "{confirmAction.riderName}" from your restaurant?</p>
+                <p className="text-sm text-gray-500 mb-4">They will no longer receive deliveries for your restaurant.</p>
+                <div className="flex gap-3 justify-end">
+                  <button onClick={() => setConfirmAction(null)}
+                    className="border px-3 py-1.5 rounded text-sm">Cancel</button>
+                  <button onClick={() => { removeRider(confirmAction.riderId, confirmAction.riderName); setConfirmAction(null) }}
+                    className="bg-red-500 text-white px-3 py-1.5 rounded text-sm">Remove</button>
                 </div>
               </>
             )}

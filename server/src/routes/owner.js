@@ -8,18 +8,63 @@ const { notifyCustomer } = require('../utils/notify')
 
 const router = express.Router()
 
-router.use(authenticate, authorize('owner', 'rider'))
+router.use(authenticate, authorize('owner'))
 
 router.get('/riders', async (req, res) => {
   try {
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
     const riders = await prisma.user.findMany({
-      where: { role: 'rider' },
+      where: { role: 'rider', restaurantId: restaurant.id },
       select: { id: true, name: true, email: true },
       orderBy: { name: 'asc' },
     })
     res.json(riders)
   } catch (err) {
     serverError(res, 'Failed to fetch riders')
+  }
+})
+
+router.post('/riders', validate('name', 'email', 'password'), async (req, res) => {
+  try {
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const { name, email, password } = req.body
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (existing) return badRequest(res, 'Email already in use')
+
+    const bcrypt = require('bcryptjs')
+    const hashed = await bcrypt.hash(password, 10)
+    const rider = await prisma.user.create({
+      data: { name, email, password: hashed, role: 'rider', restaurantId: restaurant.id, emailVerified: true },
+      select: { id: true, name: true, email: true },
+    })
+    res.status(201).json(rider)
+  } catch (err) {
+    serverError(res, 'Failed to add rider')
+  }
+})
+
+router.delete('/riders/:id', async (req, res) => {
+  try {
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const riderId = Number(req.params.id)
+    const rider = await prisma.user.findFirst({ where: { id: riderId, role: 'rider', restaurantId: restaurant.id } })
+    if (!rider) return notFound(res, 'Rider not found in your restaurant')
+
+    const activeDeliveries = await prisma.delivery.findMany({
+      where: { riderId, order: { status: { in: ['Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery'] } } },
+    })
+    if (activeDeliveries.length > 0) return badRequest(res, 'Cannot remove rider with active deliveries')
+
+    await prisma.user.update({ where: { id: riderId }, data: { restaurantId: null } })
+    res.json({ message: 'Rider removed from restaurant' })
+  } catch (err) {
+    serverError(res, 'Failed to remove rider')
   }
 })
 
@@ -265,8 +310,8 @@ router.patch('/orders/:id/rider', async (req, res) => {
     const riderId = Number(req.body.riderId)
     if (!riderId) return badRequest(res, 'Rider is required')
 
-    const rider = await prisma.user.findFirst({ where: { id: riderId, role: 'rider' } })
-    if (!rider) return badRequest(res, 'Rider not found')
+    const rider = await prisma.user.findFirst({ where: { id: riderId, role: 'rider', restaurantId: restaurant.id } })
+    if (!rider) return badRequest(res, 'Rider not found in your restaurant')
 
     await prisma.delivery.upsert({
       where: { orderId: order.id },
@@ -304,7 +349,7 @@ router.post('/orders/:id/auto-assign-rider', async (req, res) => {
     if (!order) return notFound(res, 'Order not found')
 
     const rider = await prisma.user.findFirst({
-      where: { role: 'rider' },
+      where: { role: 'rider', restaurantId: restaurant.id },
       orderBy: { name: 'asc' },
     })
 
@@ -359,8 +404,8 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
     if (status === 'Confirmed') {
       const assignedRiderId = Number(riderId)
       if (!assignedRiderId) return badRequest(res, 'Rider is required before accepting the order')
-      const rider = await prisma.user.findFirst({ where: { id: assignedRiderId, role: 'rider' } })
-      if (!rider) return badRequest(res, 'Rider not found')
+      const rider = await prisma.user.findFirst({ where: { id: assignedRiderId, role: 'rider', restaurantId: restaurant.id } })
+      if (!rider) return badRequest(res, 'Rider not found in your restaurant')
 
       await prisma.delivery.upsert({
         where: { orderId: order.id },

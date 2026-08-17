@@ -23,7 +23,8 @@ export default function OwnerOrders() {
     api.get('/owner/orders').then(({ data }) => {
       setOrders(data)
       if (data.length > 0) setRestaurant(data[0].restaurant || { name: 'Your Restaurant' })
-    }).catch(() => {
+    }).catch((err) => {
+      console.error('Owner orders fetch error:', err.response?.status, err.response?.data || err.message)
       showToast('Failed to load orders', 'error')
     }).finally(() => setLoading(false))
   }, [showToast])

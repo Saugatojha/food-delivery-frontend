@@ -57,6 +57,8 @@ async function main() {
     )
   }
 
+  await prisma.user.update({ where: { email: 'rider@example.com' }, data: { restaurantId: 1 } })
+
   await prisma.$executeRawUnsafe("DELETE FROM MenuItem")
   await prisma.$executeRawUnsafe('ALTER TABLE MenuItem AUTO_INCREMENT = 1')
 
