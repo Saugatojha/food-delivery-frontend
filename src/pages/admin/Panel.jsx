@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
+import TwoFactorSetup from '../../components/TwoFactorSetup'
+import { useAuth } from '../../context/AuthContext'
 import api from '../../api/client'
 
 export default function AdminPanel() {
+  const { user } = useAuth()
   const [users, setUsers] = useState([])
   const [restaurants, setRestaurants] = useState([])
   const [loading, setLoading] = useState(true)
@@ -82,6 +85,11 @@ export default function AdminPanel() {
         {restaurants.length === 0 && (
           <p className="col-span-full text-center text-gray-400 py-8">No restaurants yet</p>
         )}
+      </div>
+
+      <div className="mt-8 max-w-md">
+        <h2 className="text-lg font-bold mb-3">Account Security</h2>
+        <TwoFactorSetup enabled={user?.twoFactorEnabled} />
       </div>
     </div>
   )

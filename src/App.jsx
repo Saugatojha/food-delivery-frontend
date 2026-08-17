@@ -22,6 +22,7 @@ import OwnerDashboard from './pages/owner/Dashboard'
 import OwnerMenu from './pages/owner/MenuManagement'
 import OwnerOrders from './pages/owner/Orders'
 import AdminPanel from './pages/admin/Panel'
+import Account from './pages/Account'
 
 export default function App() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="/cart" element={<RoleRoute roles={['customer']}><Cart /></RoleRoute>} />
               <Route path="/checkout" element={<RoleRoute roles={['customer']}><Checkout /></RoleRoute>} />
               <Route path="/orders" element={<RoleRoute roles={['customer']}><OrderTracking /></RoleRoute>} />
+              <Route path="/account" element={<RoleRoute roles={['customer']}><Account /></RoleRoute>} />
               <Route path="/owner" element={<RoleRoute roles={['owner']}><OwnerDashboard /></RoleRoute>} />
               <Route path="/owner/menu" element={<RoleRoute roles={['owner']}><OwnerMenu /></RoleRoute>} />
               <Route path="/owner/orders" element={<RoleRoute roles={['owner']}><OwnerOrders /></RoleRoute>} />

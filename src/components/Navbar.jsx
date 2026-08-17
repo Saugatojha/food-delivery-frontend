@@ -11,6 +11,7 @@ const roleLinks = {
     { to: '/', label: 'Home' },
     { to: '/cart', label: 'Cart' },
     { to: '/orders', label: 'Orders' },
+    { to: '/account', label: 'Account' },
   ],
   owner: [
     { to: '/owner', label: 'Dashboard' },
