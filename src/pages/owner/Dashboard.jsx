@@ -752,15 +752,20 @@ export default function OwnerDashboard() {
                 <h3 className="font-semibold mb-3 text-sm">Edit Item</h3>
                 <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Name"
                   value={editingItem.name} onChange={e => setEditingItem(p => ({ ...p, name: e.target.value }))} required />
-                <select className="border p-2 rounded w-full mb-2 text-sm"
-                  value={editingItem.category} onChange={e => setEditingItem(p => ({ ...p, category: e.target.value, subCategory: '' }))}>
-                  {customCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                </select>
-                <select className="border p-2 rounded w-full mb-2 text-sm"
-                  value={editingItem.subCategory} onChange={e => setEditingItem(p => ({ ...p, subCategory: e.target.value }))}>
-                  <option value="">Select subcategory</option>
-                  {(customCategories.find(c => c.name === editingItem.category)?.subCategories || []).map(s => <option key={s.name || s} value={s.name || s}>{s.name || s}</option>)}
-                </select>
+                <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Category"
+                  list="edit-category-options" value={editingItem.category}
+                  onChange={e => setEditingItem(p => ({ ...p, category: e.target.value, subCategory: '' }))} />
+                <datalist id="edit-category-options">
+                  {customCategories.map(c => <option key={c.name} value={c.name} />)}
+                </datalist>
+                <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Subcategory (optional)"
+                  list="edit-subcategory-options" value={editingItem.subCategory}
+                  onChange={e => setEditingItem(p => ({ ...p, subCategory: e.target.value }))} />
+                <datalist id="edit-subcategory-options">
+                  {(customCategories.find(c => c.name === editingItem.category)?.subCategories || []).map(s => (
+                    <option key={s.name || s} value={s.name || s} />
+                  ))}
+                </datalist>
                 <input className="border p-2 rounded w-full mb-2 text-sm" type="number" step="0.01" placeholder="Price (NPR)"
                   value={editingItem.price} onChange={e => setEditingItem(p => ({ ...p, price: e.target.value }))} required />
                 <textarea className="border p-2 rounded w-full mb-2 text-sm" placeholder="Description"
@@ -776,16 +781,20 @@ export default function OwnerDashboard() {
                 <h3 className="font-semibold mb-3 text-sm">Add Menu Item</h3>
                 <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Item name"
                   value={newItem.name} onChange={e => setNewItem(p => ({ ...p, name: e.target.value }))} required />
-                <select className="border p-2 rounded w-full mb-2 text-sm"
-                  value={newItem.category} onChange={e => setNewItem(p => ({ ...p, category: e.target.value, subCategory: '' }))}>
-                  <option value="">Select category</option>
-                  {customCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                </select>
-                <select className="border p-2 rounded w-full mb-2 text-sm"
-                  value={newItem.subCategory} onChange={e => setNewItem(p => ({ ...p, subCategory: e.target.value }))}>
-                  <option value="">Select subcategory</option>
-                  {(customCategories.find(c => c.name === newItem.category)?.subCategories || []).map(s => <option key={s.name || s} value={s.name || s}>{s.name || s}</option>)}
-                </select>
+                <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Category (e.g. Pizza, Salad)"
+                  list="category-options" value={newItem.category}
+                  onChange={e => setNewItem(p => ({ ...p, category: e.target.value, subCategory: '' }))} />
+                <datalist id="category-options">
+                  {customCategories.map(c => <option key={c.name} value={c.name} />)}
+                </datalist>
+                <input className="border p-2 rounded w-full mb-2 text-sm" placeholder="Subcategory (optional)"
+                  list="subcategory-options" value={newItem.subCategory}
+                  onChange={e => setNewItem(p => ({ ...p, subCategory: e.target.value }))} />
+                <datalist id="subcategory-options">
+                  {(customCategories.find(c => c.name === newItem.category)?.subCategories || []).map(s => (
+                    <option key={s.name || s} value={s.name || s} />
+                  ))}
+                </datalist>
                 <input className="border p-2 rounded w-full mb-2 text-sm" type="number" step="0.01" placeholder="Price (NPR)"
                   value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))} required />
                 <textarea className="border p-2 rounded w-full mb-2 text-sm" placeholder="Description (optional)"
