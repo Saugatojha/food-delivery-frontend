@@ -134,6 +134,14 @@ router.post('/menu', validate('name', 'price'), async (req, res) => {
     const item = await prisma.menuItem.create({
       data: { restaurantId: restaurant.id, name, price: Number(price), category: category || 'General', subCategory: subCategory || 'General', desc, image },
     })
+
+    const catName = (category || 'General').trim()
+    await prisma.category.upsert({
+      where: { restaurantId_name: { restaurantId: restaurant.id, name: catName } },
+      update: {},
+      create: { restaurantId: restaurant.id, name: catName },
+    })
+
     res.status(201).json(item)
   } catch (err) {
     serverError(res, 'Failed to add menu item')
@@ -178,25 +186,24 @@ router.delete('/menu/:id', async (req, res) => {
   }
 })
 
-// Get all unique categories for this restaurant's menu
+// Get all categories for this restaurant
 router.get('/menu/categories', async (req, res) => {
   try {
     const restaurant = await requireRestaurant(req.user.id, res)
     if (!restaurant) return
 
-    const items = await prisma.menuItem.findMany({
+    const cats = await prisma.category.findMany({
       where: { restaurantId: restaurant.id },
-      select: { category: true },
-      distinct: ['category'],
+      select: { name: true },
+      orderBy: { name: 'asc' },
     })
-    const categories = items.map(i => i.category).sort()
-    res.json(categories)
+    res.json(cats.map(c => c.name))
   } catch (err) {
     serverError(res, 'Failed to fetch categories')
   }
 })
 
-// Add a new category (just creating an empty slot or marker)
+// Add a new category
 router.post('/menu/categories', validate('name'), async (req, res) => {
   try {
     const { name } = req.body
@@ -206,13 +213,25 @@ router.post('/menu/categories', validate('name'), async (req, res) => {
     if (name.length > 50) {
       return badRequest(res, 'Category name must be under 50 characters')
     }
+
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const existing = await prisma.category.findUnique({
+      where: { restaurantId_name: { restaurantId: restaurant.id, name: name.trim() } },
+    })
+    if (existing) return badRequest(res, 'Category already exists')
+
+    await prisma.category.create({
+      data: { restaurantId: restaurant.id, name: name.trim() },
+    })
     res.status(201).json({ category: name.trim() })
   } catch (err) {
     serverError(res, 'Failed to add category')
   }
 })
 
-// Rename a category (update all items with old category to new category)
+// Rename a category (update Category table and all menu items)
 router.patch('/menu/categories/:oldName', validate('newName'), async (req, res) => {
   try {
     const { oldName } = req.params
@@ -222,28 +241,36 @@ router.patch('/menu/categories/:oldName', validate('newName'), async (req, res) 
       return badRequest(res, 'New category name cannot be empty')
     }
     if (newName.length > 50) {
-      return badRequest(res, 'Category name must be under 50 characters')
+      return badRequest(res, 'New category name must be under 50 characters')
     }
 
     const restaurant = await requireRestaurant(req.user.id, res)
     if (!restaurant) return
 
-    const updated = await prisma.menuItem.updateMany({
+    const cat = await prisma.category.findUnique({
+      where: { restaurantId_name: { restaurantId: restaurant.id, name: oldName } },
+    })
+    if (!cat) return notFound(res, 'Category not found')
+
+    const dup = await prisma.category.findUnique({
+      where: { restaurantId_name: { restaurantId: restaurant.id, name: newName.trim() } },
+    })
+    if (dup && dup.id !== cat.id) return badRequest(res, 'A category with that name already exists')
+
+    await prisma.category.update({ where: { id: cat.id }, data: { name: newName.trim() } })
+
+    await prisma.menuItem.updateMany({
       where: { restaurantId: restaurant.id, category: oldName },
       data: { category: newName.trim() },
     })
 
-    if (updated.count === 0) {
-      return notFound(res, 'Category not found')
-    }
-
-    res.json({ message: `Renamed ${updated.count} items`, newCategory: newName.trim() })
+    res.json({ message: 'Category renamed', newCategory: newName.trim() })
   } catch (err) {
     serverError(res, 'Failed to rename category')
   }
 })
 
-// Delete a category (remove all items in this category)
+// Delete a category (remove from Category table and delete all items in it)
 router.delete('/menu/categories/:name', async (req, res) => {
   try {
     const { name } = req.params
@@ -251,15 +278,18 @@ router.delete('/menu/categories/:name', async (req, res) => {
     const restaurant = await requireRestaurant(req.user.id, res)
     if (!restaurant) return
 
+    const cat = await prisma.category.findUnique({
+      where: { restaurantId_name: { restaurantId: restaurant.id, name } },
+    })
+    if (!cat) return notFound(res, 'Category not found')
+
     const deleted = await prisma.menuItem.deleteMany({
       where: { restaurantId: restaurant.id, category: name },
     })
 
-    if (deleted.count === 0) {
-      return notFound(res, 'Category not found')
-    }
+    await prisma.category.delete({ where: { id: cat.id } })
 
-    res.json({ message: `Deleted ${deleted.count} items from category` })
+    res.json({ message: `Deleted category and ${deleted.count} items` })
   } catch (err) {
     serverError(res, 'Failed to delete category')
   }

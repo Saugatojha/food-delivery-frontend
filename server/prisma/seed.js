@@ -59,6 +59,11 @@ async function main() {
 
   await prisma.user.update({ where: { email: 'rider@example.com' }, data: { restaurantId: 1 } })
 
+  const pizzaCategories = ['Pizza', 'Appetizer']
+  for (const name of pizzaCategories) {
+    await prisma.category.create({ data: { restaurantId: 1, name } })
+  }
+
   await prisma.$executeRawUnsafe("DELETE FROM MenuItem")
   await prisma.$executeRawUnsafe('ALTER TABLE MenuItem AUTO_INCREMENT = 1')
 

@@ -46,6 +46,7 @@ model Restaurant {
 
   owner     User?      @relation("RestaurantOwner", fields: [ownerId], references: [id])
   users     User[]     @relation("UserRestaurant")
+  categories Category[]
   menuItems MenuItem[]
   orders    Order[]
   ratings   Rating[]
@@ -67,6 +68,17 @@ model MenuItem {
   restaurant   Restaurant    @relation(fields: [restaurantId], references: [id])
   orderItems   OrderItem[]
   cartItems    CartItem[]
+}
+
+model Category {
+  id           Int      @id @default(autoincrement())
+  restaurantId Int
+  name         String
+  createdAt    DateTime @default(now())
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@unique([restaurantId, name])
 }
 
 model Order {
