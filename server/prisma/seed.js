@@ -42,12 +42,12 @@ async function main() {
 
   const restaurants = [
     { id: 1, name: 'Pizza Palace', cuisine: 'Italian', rating: 4.5, deliveryTime: '25-35 min', isOpen: 1, ownerId: ownerUser.id, latitude: 27.7150, longitude: 85.3120, image: 'https://placehold.co/400x200/F97316/FFFFFF?text=Pizza' },
-    { id: 2, name: 'Burger Barn', cuisine: 'American', rating: 4.2, deliveryTime: '20-30 min', isOpen: 1, ownerId: null, latitude: 27.7040, longitude: 85.3070, image: 'https://placehold.co/400x200/EA580C/FFFFFF?text=Burger' },
-    { id: 3, name: 'Sushi Spot', cuisine: 'Japanese', rating: 4.7, deliveryTime: '30-40 min', isOpen: 1, ownerId: null, latitude: 27.6710, longitude: 85.3260, image: 'https://placehold.co/400x200/F97316/FFFFFF?text=Sushi' },
-    { id: 4, name: 'Taco Town', cuisine: 'Mexican', rating: 4.3, deliveryTime: '15-25 min', isOpen: 0, ownerId: null, latitude: 27.7210, longitude: 85.3620, image: 'https://placehold.co/400x200/EA580C/FFFFFF?text=Taco' },
-    { id: 5, name: 'Curry House', cuisine: 'Indian', rating: 4.6, deliveryTime: '25-35 min', isOpen: 1, ownerId: null, latitude: 27.7100, longitude: 85.3480, image: 'https://placehold.co/400x200/F97316/FFFFFF?text=Curry' },
-    { id: 6, name: 'Noodle Nest', cuisine: 'Chinese', rating: 4.1, deliveryTime: '20-30 min', isOpen: 1, ownerId: null, latitude: 27.6720, longitude: 85.4280, image: 'https://placehold.co/400x200/EA580C/FFFFFF?text=Noodle' },
-    { id: 7, name: 'Momo House', cuisine: 'Nepali', rating: 4.8, deliveryTime: '20-30 min', isOpen: 1, ownerId: null, latitude: 27.7180, longitude: 85.3350, image: 'https://placehold.co/400x200/F97316/FFFFFF?text=Momo' },
+    { id: 2, name: 'Burger Barn', cuisine: 'American', rating: 4.2, deliveryTime: '20-30 min', isOpen: 1, ownerId: null, latitude: 27.7040, longitude: 85.3070, image: '/burgerbarn.png' },
+    { id: 3, name: 'Sushi Spot', cuisine: 'Japanese', rating: 4.7, deliveryTime: '30-40 min', isOpen: 1, ownerId: null, latitude: 27.6710, longitude: 85.3260, image: '/sushispot.png' },
+    { id: 4, name: 'Taco Town', cuisine: 'Mexican', rating: 4.3, deliveryTime: '15-25 min', isOpen: 0, ownerId: null, latitude: 27.7210, longitude: 85.3620, image: '/tocotown.png' },
+    { id: 5, name: 'Curry House', cuisine: 'Indian', rating: 4.6, deliveryTime: '25-35 min', isOpen: 1, ownerId: null, latitude: 27.7100, longitude: 85.3480, image: '/curryhouse.png' },
+    { id: 6, name: 'Noodle Nest', cuisine: 'Chinese', rating: 4.1, deliveryTime: '20-30 min', isOpen: 1, ownerId: null, latitude: 27.6720, longitude: 85.4280, image: '/noodenest.png' },
+    { id: 7, name: 'Momo House', cuisine: 'Nepali', rating: 4.8, deliveryTime: '20-30 min', isOpen: 1, ownerId: null, latitude: 27.7180, longitude: 85.3350, image: '/momohouse.png' },
   ]
 
   for (const r of restaurants) {
