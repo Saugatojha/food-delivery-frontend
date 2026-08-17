@@ -17,8 +17,10 @@ model User {
   verificationToken   String?
   verificationExpires DateTime?
   failedLoginAttempts Int       @default(0)
-  lockedUntil         DateTime?
-  createdAt           DateTime  @default(now())
+  lockedUntil        DateTime?
+  twoFactorSecret    String?
+  twoFactorEnabled   Boolean   @default(false)
+  createdAt          DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
   orders          Order[]

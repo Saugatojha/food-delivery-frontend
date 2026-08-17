@@ -5,6 +5,7 @@ import { formatPrice, CUISINE_CATEGORIES } from '../../data/mock'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
 import ImageUpload from '../../components/ImageUpload'
 import MapView from '../../components/MapView'
+import TwoFactorSetup from '../../components/TwoFactorSetup'
 import api from '../../api/client'
 import { updateOwnerOrderStatus, getRiderEarnings, STATUS_FLOWS, getAllowedTransitions } from '../../services/orders'
 
@@ -841,6 +842,7 @@ export default function OwnerDashboard() {
       )}
 
       {tab === 'settings' && !editingSettings && !isRider && (
+        <>
         <div className="border rounded-lg p-4 bg-white">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-semibold text-lg">Restaurant Details</h2>
@@ -855,6 +857,10 @@ export default function OwnerDashboard() {
           </div>
           {restaurant?.image && <img src={restaurant.image} alt={restaurant.name} className="mt-3 w-40 h-28 object-cover rounded-lg" />}
         </div>
+        <div className="mt-4">
+          <TwoFactorSetup enabled={user?.twoFactorEnabled} />
+        </div>
+        </>
       )}
 
       {tab === 'settings' && editingSettings && restaurant && !isRider && (
@@ -884,6 +890,12 @@ export default function OwnerDashboard() {
               className="border px-4 py-2 rounded text-sm">Cancel</button>
           </div>
         </form>
+      )}
+
+      {tab === 'settings' && isRider && (
+        <div className="max-w-md">
+          <TwoFactorSetup enabled={user?.twoFactorEnabled} />
+        </div>
       )}
 
       {tab === 'earnings' && (

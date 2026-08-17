@@ -23,7 +23,7 @@ function Eye({ open, onClick }) {
 
 export default function Login() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, verify2FA } = useAuth()
   const { showToast } = useToast()
   const [form, setForm] = useState({ login: '', password: '' })
   const [errors, setErrors] = useState({})
@@ -31,6 +31,9 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [unverifiedEmail, setUnverifiedEmail] = useState('')
+  const [requires2FA, setRequires2FA] = useState(false)
+  const [tempToken, setTempToken] = useState('')
+  const [tfaCode, setTfaCode] = useState('')
 
   const validate = () => {
     const e = {}
@@ -46,12 +49,18 @@ export default function Login() {
     setLoading(true)
     setServerError('')
     try {
-      const u = await login(form.login, form.password)
+      const result = await login(form.login, form.password)
       setUnverifiedEmail('')
       setServerError('')
+      if (result.requires2FA) {
+        setRequires2FA(true)
+        setTempToken(result.tempToken)
+        setTfaCode('')
+        return
+      }
       showToast('Welcome back!', 'success')
       const roleRoutes = { rider: '/owner', owner: '/owner', admin: '/admin' }
-      navigate(roleRoutes[u.role] || '/')
+      navigate(roleRoutes[result.role] || '/')
     } catch (err) {
       const status = err?.response?.status
       const code = err?.response?.data?.code
@@ -85,6 +94,61 @@ export default function Login() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleTfaSubmit = async (e) => {
+    e.preventDefault()
+    if (!tfaCode || tfaCode.length !== 6) return
+    setLoading(true)
+    setServerError('')
+    try {
+      const u = await verify2FA(tempToken, tfaCode)
+      setRequires2FA(false)
+      showToast('Welcome back!', 'success')
+      const roleRoutes = { rider: '/owner', owner: '/owner', admin: '/admin' }
+      navigate(roleRoutes[u.role] || '/')
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Invalid code'
+      setServerError(msg)
+      showToast(msg, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (requires2FA) {
+    return (
+      <AuthShell title="Two-Factor Authentication" subtitle="Enter the 6-digit code from your authenticator app.">
+        {serverError && (
+          <div role="alert" className="mb-4 border border-red-300 bg-red-50 text-red-800 rounded p-3 text-sm">
+            {serverError}
+          </div>
+        )}
+        <form onSubmit={handleTfaSubmit} className="grid gap-4">
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block" htmlFor="tfa-code">Verification Code</label>
+            <input
+              id="tfa-code"
+              className={INPUT}
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="000000"
+              value={tfaCode}
+              onChange={e => { setTfaCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setServerError('') }}
+              autoFocus
+            />
+          </div>
+          <button className={BTN} disabled={loading || tfaCode.length !== 6} aria-label={loading ? 'Verifying' : 'Verify'}>
+            {loading ? 'Verifying...' : 'Verify'}
+          </button>
+          <button type="button" onClick={() => { setRequires2FA(false); setServerError(''); setTfaCode('') }}
+            className="text-sm text-gray-500 hover:text-gray-700 text-center">
+            Back to login
+          </button>
+        </form>
+      </AuthShell>
+    )
   }
 
   return (

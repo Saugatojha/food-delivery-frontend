@@ -11,7 +11,7 @@ async function authenticate(req, res, next) {
     const decoded = jwt.verify(token, jwtSecret)
     const user = await prisma.user.findUnique({ where: { id: decoded.id } })
     if (!user) return unauthorized(res, 'User not found')
-    req.user = { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId }
+    req.user = { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, twoFactorEnabled: user.twoFactorEnabled }
     next()
   } catch (err) {
     return unauthorized(res, 'Invalid or expired token')

@@ -20,6 +20,14 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (loginValue, password) => {
     const { data } = await api.post('/auth/login', { login: loginValue.trim(), password })
+    if (data.requires2FA) return { requires2FA: true, tempToken: data.tempToken }
+    writeJson('user', data.user)
+    setUser(data.user)
+    return data.user
+  }, [])
+
+  const verify2FA = useCallback(async (tempToken, token) => {
+    const { data } = await api.post('/auth/2fa/verify', { tempToken, token })
     writeJson('user', data.user)
     setUser(data.user)
     return data.user
@@ -59,7 +67,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, verifyEmail, resendVerification, forgotPassword, resetPassword, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, verify2FA, register, verifyEmail, resendVerification, forgotPassword, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -2,11 +2,13 @@ const express = require('express')
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const speakeasy = require('speakeasy')
+const QRCode = require('qrcode')
 const rateLimit = require('express-rate-limit')
 const prisma = require('../config/database')
 const { jwtSecret, jwtExpiresIn } = require('../config/env')
 const { authenticate } = require('../middleware/auth')
-const { badRequest, conflict, unauthorized, serverError } = require('../utils/errors')
+const { badRequest, conflict, unauthorized, serverError, forbidden } = require('../utils/errors')
 const { validate, validatePasswordStrength } = require('../middleware/validate')
 const { generateCsrfToken, setCsrfCookie } = require('../middleware/csrf')
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/mailer')
@@ -111,7 +113,7 @@ router.post('/register', registerLimiter, validate('name', 'email', 'password'),
 
     res.status(201).json({
       message: 'Registration successful. Please verify your email to login.',
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: false },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: false, twoFactorEnabled: false },
       ...(process.env.NODE_ENV !== 'production' && emailResult.devLink ? { devLink: emailResult.devLink } : {}),
     })
   } catch (err) {
@@ -163,12 +165,18 @@ router.post('/login', loginLimiter, validate('login', 'password'), async (req, r
     }
 
     await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } })
+
+    if (user.twoFactorEnabled) {
+      const tempToken = jwt.sign({ id: user.id, role: user.role, tfa: true }, jwtSecret, { expiresIn: '5m' })
+      return res.json({ requires2FA: true, tempToken })
+    }
+
     const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
     setJwtCookie(res, token)
     setCsrfCookie(res, generateCsrfToken())
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: true } })
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: true, twoFactorEnabled: false } })
   } catch (err) {
-    logger.error({ message: 'Login error', error: err.message, stack: err.stack })
+    logger.error({ message: 'Login error', error: err.message })
     serverError(res, 'Login failed')
   }
 })
@@ -294,6 +302,81 @@ router.post('/reset-password', resetLimiter, validate('token', 'password'), vali
 router.post('/logout', (req, res) => {
   res.clearCookie('jwt', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' })
   res.json({ message: 'Logged out' })
+})
+
+router.post('/2fa/setup', authenticate, async (req, res) => {
+  try {
+    const secret = speakeasy.generateSecret({ name: `SmartServe (${req.user.email})`, length: 20 })
+    await prisma.user.update({ where: { id: req.user.id }, data: { twoFactorSecret: secret.base32 } })
+    const qrDataUrl = await QRCode.toDataURL(secret.otpauth_url)
+    res.json({ secret: secret.base32, qrCode: qrDataUrl })
+  } catch (err) {
+    serverError(res, 'Failed to setup 2FA')
+  }
+})
+
+router.post('/2fa/enable', authenticate, validate('token'), async (req, res) => {
+  try {
+    const { token } = req.body
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } })
+    if (!user.twoFactorSecret) return badRequest(res, 'Run 2FA setup first')
+    if (user.twoFactorEnabled) return badRequest(res, '2FA is already enabled')
+
+    const verified = speakeasy.totp.verify({ secret: user.twoFactorSecret, encoding: 'base32', token, window: 1 })
+    if (!verified) return badRequest(res, 'Invalid verification code')
+
+    await prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: true } })
+    const backupCodes = Array.from({ length: 8 }, () => crypto.randomBytes(4).toString('hex'))
+    res.json({ message: '2FA enabled successfully', backupCodes })
+  } catch (err) {
+    serverError(res, 'Failed to enable 2FA')
+  }
+})
+
+router.post('/2fa/disable', authenticate, validate('token'), async (req, res) => {
+  try {
+    const { token } = req.body
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } })
+    if (!user.twoFactorEnabled) return badRequest(res, '2FA is not enabled')
+
+    const verified = speakeasy.totp.verify({ secret: user.twoFactorSecret, encoding: 'base32', token, window: 1 })
+    if (!verified) return badRequest(res, 'Invalid verification code')
+
+    await prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: false, twoFactorSecret: null } })
+    res.json({ message: '2FA disabled successfully' })
+  } catch (err) {
+    serverError(res, 'Failed to disable 2FA')
+  }
+})
+
+router.post('/2fa/verify', validate('token'), async (req, res) => {
+  try {
+    const { token, tempToken } = req.body
+    if (!tempToken) return badRequest(res, 'Temp token required')
+
+    let decoded
+    try {
+      decoded = jwt.verify(tempToken, jwtSecret)
+    } catch {
+      return unauthorized(res, 'Session expired. Please login again.')
+    }
+    if (!decoded.tfa) return badRequest(res, 'Invalid token type')
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+    if (!user) return unauthorized(res, 'User not found')
+    if (!user.twoFactorEnabled) return badRequest(res, '2FA is not enabled')
+
+    const verified = speakeasy.totp.verify({ secret: user.twoFactorSecret, encoding: 'base32', token, window: 1 })
+    if (!verified) return badRequest(res, 'Invalid verification code')
+
+    await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } })
+    const fullToken = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn })
+    setJwtCookie(res, fullToken)
+    setCsrfCookie(res, generateCsrfToken())
+    res.json({ token: fullToken, user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: true, twoFactorEnabled: true } })
+  } catch (err) {
+    serverError(res, 'Failed to verify 2FA')
+  }
 })
 
 module.exports = router
