@@ -14,8 +14,8 @@ router.get('/', authenticate, async (req, res) => {
     const openOnly = req.query.open === 'true'
 
     const where = {}
-    if (search) where.name = { contains: search }
-    if (cuisine) where.cuisine = { contains: cuisine }
+    if (search) where.OR = [{ name: { contains: search } }, { cuisine: { contains: search } }]
+    if (cuisine) where.cuisine = { equals: cuisine }
     if (openOnly) where.isOpen = true
 
     const [restaurants, total] = await Promise.all([
