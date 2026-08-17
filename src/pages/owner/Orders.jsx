@@ -23,8 +23,10 @@ export default function OwnerOrders() {
     api.get('/owner/orders').then(({ data }) => {
       setOrders(data)
       if (data.length > 0) setRestaurant(data[0].restaurant || { name: 'Your Restaurant' })
-    }).catch(() => {}).finally(() => setLoading(false))
-  }, [])
+    }).catch(() => {
+      showToast('Failed to load orders', 'error')
+    }).finally(() => setLoading(false))
+  }, [showToast])
 
   const refreshOrders = async () => {
     const { data } = await api.get('/owner/orders')

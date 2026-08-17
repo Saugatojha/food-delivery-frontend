@@ -56,7 +56,7 @@ export default function OrderTracking() {
       const data = await getAllOrders()
       setOrders(data)
     } catch {
-      // Polling failures are transient; keep last known orders on screen.
+      setOrders([])
     } finally {
       setLoading(false)
     }

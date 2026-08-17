@@ -63,7 +63,23 @@ router.get('/', authenticate, async (req, res) => {
       include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
       orderBy: { createdAt: 'desc' },
     })
-    res.json(orders)
+
+    const riderIds = [...new Set(orders.map(o => o.delivery?.riderId).filter(Boolean))]
+    let riders = []
+    if (riderIds.length > 0) {
+      riders = await prisma.user.findMany({
+        where: { id: { in: riderIds } },
+        select: { id: true, name: true, email: true },
+      })
+    }
+    const riderMap = Object.fromEntries(riders.map(r => [r.id, r]))
+
+    const enriched = orders.map(o => ({
+      ...o,
+      delivery: o.delivery ? { ...o.delivery, rider: riderMap[o.delivery.riderId] || null } : null,
+    }))
+
+    res.json(enriched)
   } catch (err) {
     serverError(res, 'Failed to fetch orders')
   }

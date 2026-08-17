@@ -26,7 +26,6 @@ model User {
   cartItems       CartItem[]
   notifications   Notification[]
   passwordResetTokens PasswordResetToken[]
-  deliveries      Delivery[]
   restaurant      Restaurant? @relation("UserRestaurant", fields: [restaurantId], references: [id])
   ownedRestaurant Restaurant? @relation("RestaurantOwner")
 }
@@ -123,7 +122,6 @@ model Delivery {
   createdAt DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id])
-  rider User? @relation(fields: [riderId], references: [id])
 }
 
 model CartItem {

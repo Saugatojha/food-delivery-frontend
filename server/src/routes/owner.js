@@ -40,10 +40,26 @@ router.get('/orders', async (req, res) => {
 
     const orders = await prisma.order.findMany({
       where: { restaurantId: restaurant.id },
-      include: { items: { include: { menuItem: true } }, payment: true, delivery: { include: { rider: { select: { id: true, name: true, email: true } } } } },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
       orderBy: { createdAt: 'desc' },
     })
-    res.json(orders)
+
+    const riderIds = [...new Set(orders.map(o => o.delivery?.riderId).filter(Boolean))]
+    let riders = []
+    if (riderIds.length > 0) {
+      riders = await prisma.user.findMany({
+        where: { id: { in: riderIds } },
+        select: { id: true, name: true, email: true },
+      })
+    }
+    const riderMap = Object.fromEntries(riders.map(r => [r.id, r]))
+
+    const enriched = orders.map(o => ({
+      ...o,
+      delivery: o.delivery ? { ...o.delivery, rider: riderMap[o.delivery.riderId] || null } : null,
+    }))
+
+    res.json(enriched)
   } catch (err) {
     serverError(res, 'Failed to fetch orders')
   }
@@ -260,8 +276,17 @@ router.patch('/orders/:id/rider', async (req, res) => {
 
     const updated = await prisma.order.findUnique({
       where: { id: order.id },
-      include: { items: { include: { menuItem: true } }, payment: true, delivery: { include: { rider: { select: { id: true, name: true, email: true } } } } },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
     })
+
+    if (updated.delivery?.riderId) {
+      const rider = await prisma.user.findUnique({
+        where: { id: updated.delivery.riderId },
+        select: { id: true, name: true, email: true },
+      })
+      updated.delivery.rider = rider || null
+    }
+
     res.json(updated)
   } catch (err) {
     serverError(res, 'Failed to assign rider')
@@ -295,8 +320,16 @@ router.post('/orders/:id/auto-assign-rider', async (req, res) => {
 
     const updated = await prisma.order.findUnique({
       where: { id: order.id },
-      include: { items: { include: { menuItem: true } }, payment: true, delivery: { include: { rider: { select: { id: true, name: true, email: true } } } } },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
     })
+
+    if (updated.delivery?.riderId) {
+      const riderRecord = await prisma.user.findUnique({
+        where: { id: updated.delivery.riderId },
+        select: { id: true, name: true, email: true },
+      })
+      updated.delivery.rider = riderRecord || null
+    }
 
     res.json({ rider: { id: rider.id, name: rider.name, email: rider.email }, order: updated })
   } catch (err) {
@@ -339,8 +372,17 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
     const updated = await prisma.order.update({
       where: { id: order.id },
       data: { status },
-      include: { items: { include: { menuItem: true } }, payment: true, delivery: { include: { rider: { select: { id: true, name: true, email: true } } } } },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
     })
+
+    if (updated.delivery?.riderId) {
+      const rider = await prisma.user.findUnique({
+        where: { id: updated.delivery.riderId },
+        select: { id: true, name: true, email: true },
+      })
+      updated.delivery.rider = rider || null
+    }
+
     res.json(updated)
 
     if (status === 'Confirmed') {
