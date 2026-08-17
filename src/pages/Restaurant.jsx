@@ -18,8 +18,10 @@ export default function Restaurant() {
   useEffect(() => {
     api.get(`/restaurants/${id}/menu`).then(({ data }) => {
       setData(data)
-    }).catch(() => {}).finally(() => setLoading(false))
-  }, [id])
+    }).catch(() => {
+      showToast('Could not load restaurant menu', 'error')
+    }).finally(() => setLoading(false))
+  }, [id, showToast])
 
   const addToCart = (item) => {
     if (!user) return showToast('Please login first', 'error')

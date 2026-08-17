@@ -40,7 +40,7 @@ router.get('/orders', async (req, res) => {
 
     const orders = await prisma.order.findMany({
       where: { restaurantId: restaurant.id },
-      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: { include: { rider: { select: { id: true, name: true, email: true } } } } },
       orderBy: { createdAt: 'desc' },
     })
     res.json(orders)
@@ -260,11 +260,47 @@ router.patch('/orders/:id/rider', async (req, res) => {
 
     const updated = await prisma.order.findUnique({
       where: { id: order.id },
-      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: { include: { rider: { select: { id: true, name: true, email: true } } } } },
     })
     res.json(updated)
   } catch (err) {
     serverError(res, 'Failed to assign rider')
+  }
+})
+
+router.post('/orders/:id/auto-assign-rider', async (req, res) => {
+  try {
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const order = await prisma.order.findFirst({
+      where: { id: Number(req.params.id), restaurantId: restaurant.id },
+    })
+    if (!order) return notFound(res, 'Order not found')
+
+    const rider = await prisma.user.findFirst({
+      where: { role: 'rider' },
+      orderBy: { name: 'asc' },
+    })
+
+    if (!rider) {
+      return res.json({ rider: null, message: 'No riders available' })
+    }
+
+    await prisma.delivery.upsert({
+      where: { orderId: order.id },
+      update: { riderId: rider.id, status: 'assigned', address: order.address },
+      create: { orderId: order.id, riderId: rider.id, address: order.address, status: 'assigned' },
+    })
+
+    const updated = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: { include: { rider: { select: { id: true, name: true, email: true } } } } },
+    })
+
+    res.json({ rider: { id: rider.id, name: rider.name, email: rider.email }, order: updated })
+  } catch (err) {
+    serverError(res, 'Failed to auto-assign rider')
   }
 })
 
@@ -303,7 +339,7 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
     const updated = await prisma.order.update({
       where: { id: order.id },
       data: { status },
-      include: { items: { include: { menuItem: true } }, payment: true, delivery: true },
+      include: { items: { include: { menuItem: true } }, payment: true, delivery: { include: { rider: { select: { id: true, name: true, email: true } } } } },
     })
     res.json(updated)
 

@@ -33,28 +33,31 @@ export default function OwnerOrders() {
 
   const changeStatus = async (orderId, status) => {
     try {
-      await updateOwnerOrderStatus(orderId, status)
-      await refreshOrders()
-      showToast(`Order #${orderId} → ${status}`, 'success')
-
       if (status === 'Confirmed') {
         setAssigningId(orderId)
+        let riderId = null
         try {
           const result = await autoAssignRider(orderId)
-          await refreshOrders()
+          riderId = result?.rider?.id || null
           if (result?.rider) {
-            showToast(`Rider ${result.rider.name || 'assigned'} for Order #${orderId}`, 'success')
+            showToast(`Rider ${result.rider.name} assigned for Order #${orderId}`, 'success')
           } else {
-            showToast('No riders available. Assign manually later.', 'error')
+            showToast('No riders available. Order confirmed without rider.', 'error')
           }
         } catch {
-          showToast('Could not auto-assign rider. Assign manually later.', 'error')
-        } finally {
-          setAssigningId(null)
+          showToast('Could not auto-assign rider. Order confirmed without rider.', 'error')
         }
+        await updateOwnerOrderStatus(orderId, status, riderId)
+        await refreshOrders()
+        setAssigningId(null)
+      } else {
+        await updateOwnerOrderStatus(orderId, status)
+        await refreshOrders()
+        showToast(`Order #${orderId} → ${status}`, 'success')
       }
     } catch {
       showToast('Failed to update order', 'error')
+      setAssigningId(null)
     }
   }
 
@@ -94,9 +97,9 @@ export default function OwnerOrders() {
                 <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : order.status === 'Ready for Pickup' ? 'bg-green-100 text-green-700' : order.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                   {order.status}
                 </span>
-                {order.rider && (
+                {order.delivery?.rider && (
                   <p className="text-xs text-gray-500 mt-1">
-                    Rider: {order.rider.name || order.rider.email || `#${order.rider.id}`}
+                    Rider: {order.delivery.rider.name || order.delivery.rider.email || `#${order.delivery.rider.id}`}
                   </p>
                 )}
                 {assigningId === order.id && (

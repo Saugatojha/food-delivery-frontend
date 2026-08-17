@@ -102,9 +102,9 @@ export default function OrderTracking() {
               <div className="sm:text-right">
                 <p className="text-sm font-semibold text-orange-600">{order.status}</p>
                 <p className="text-xs text-gray-500">ETA: {order.deliveryEta}</p>
-                {order.rider && (
+                {order.delivery?.rider && (
                   <p className="text-xs text-green-600 mt-1">
-                    Rider: {order.rider.name || order.rider.email || `#${order.rider.id}`}
+                    Rider: {order.delivery.rider.name || order.delivery.rider.email || `#${order.delivery.rider.id}`}
                   </p>
                 )}
               </div>

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE Delivery ADD CONSTRAINT Delivery_riderId_fkey FOREIGN KEY (iderId) REFERENCES User(id) ON DELETE SET NULL ON UPDATE CASCADE;
