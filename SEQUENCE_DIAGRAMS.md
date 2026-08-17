@@ -130,12 +130,12 @@ sequenceDiagram
     F-->>C: Restaurant cards (cuisine filter)
 
     C->>F: Open restaurant menu
-    F->>S: GET /api/restaurants/:id
+    F->>S: GET /api/restaurants/:id/menu
     S->>D: restaurant.findUnique + menuItem.findMany
     D-->>S: restaurant + menu items (category, subCategory)
-    S-->>F: 200 { restaurant, menu }
-    F->>F: Group menu by category → subCategory (fallback "Other")
-    F-->>C: Grouped menu
+    S-->>F: 200 { restaurant, items }
+    F->>F: Group items by category → render categorized menu with section headers
+    F-->>C: Grouped menu with category headers (e.g. Pizza, Appetizer, Beverage)
 
     C->>F: Add items to cart
     F->>F: Update Cart (local state, localStorage)
@@ -175,16 +175,23 @@ sequenceDiagram
 
     alt Accept order
         O->>F: Click Accept
-        F->>F: Confirmation modal → select a rider (from GET /api/owner/riders)
-        O->>F: Confirm
-        F->>S: PATCH /api/owner/orders/:id/status { status: "Confirmed", riderId }
-        S->>S: Validate owner owns restaurant + riderId is a real rider (400 if missing)
-        S->>D: delivery.upsert (riderId = chosen rider, status "assigned")
+        F->>S: PATCH /api/owner/orders/:id/status { status: "Confirmed" }
         S->>D: order.update (Pending → Confirmed)
         D-->>S: updated order
+        F->>F: Auto-assign rider via POST /owner/orders/:id/auto-assign-rider
+        F->>S: POST /api/owner/orders/:id/auto-assign-rider
+        S->>D: Find available rider (rider role, no active delivery)
+        alt Rider available
+            S->>D: delivery.create (riderId, status "assigned")
+            S->>D: order.update (riderId set)
+            D-->>S: updated order + delivery
+            S-->>F: 200 { rider: { id, name, email } }
+            F-->>O: Order confirmed + rider assigned
+        else No riders available
+            S-->>F: 200 { rider: null }
+            F-->>O: Order confirmed, warning: "No riders available. Assign manually later."
+        end
         S->>S: notifyCustomer("Order Confirmed")
-        S-->>F: 200 updated
-        F-->>O: Order shown as Confirmed (rider assigned)
     else Decline order
         O->>F: Click Decline → Confirm
         F->>S: PATCH /api/owner/orders/:id/status { status: "Rejected" }
@@ -196,7 +203,7 @@ sequenceDiagram
         F-->>O: Order marked Rejected
     end
 
-    Note over O,S: Owner then advances: Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered.<br/>Riders can be (re)assigned later via PATCH /api/owner/orders/:id/rider (not on terminal orders).
+    Note over O,S: Owner then advances: Confirmed → Preparing → Ready for Pickup → Out for Delivery → Delivered.<br/>Auto-assign calls POST /api/owner/orders/:id/auto-assign-rider which picks the first<br/>available rider. Manual reassignment via PATCH /api/owner/orders/:id/rider is also available.
 ```
 
 ---
@@ -218,7 +225,7 @@ sequenceDiagram
     S-->>F: 200 orders
     F-->>R: Available order cards + mini map (location = Kathmandu default)
 
-    Note over R,D: Accept/reject/status are scoped via canManageOrder:<br/>the restaurant owner OR the already-assigned rider.<br/>Riders are assigned by the owner on Confirm (or via PATCH /owner/orders/:id/rider), not auto-assigned.
+    Note over R,D: Accept/reject/status are scoped via canManageOrder:<br/>the restaurant owner OR the already-assigned rider.<br/>Riders are auto-assigned when the owner confirms an order via POST /api/owner/orders/:id/auto-assign-rider,<br/>or can be manually assigned via GET /api/owner/riders + PATCH.
 
     alt Accept
         R->>F: Accept delivery

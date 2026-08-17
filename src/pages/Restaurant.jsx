@@ -42,6 +42,16 @@ export default function Restaurant() {
 
   const { restaurant, items } = data
 
+  const menuByCategory = (() => {
+    const groups = {}
+    for (const item of items) {
+      const cat = item.category || 'Other'
+      if (!groups[cat]) groups[cat] = []
+      groups[cat].push(item)
+    }
+    return groups
+  })()
+
   if (!restaurant.isOpen) {
     return <EmptyState icon="🔒" title="Restaurant is closed" message="This restaurant is not accepting orders right now." action={<Link to="/" className="text-orange-500 font-medium">Browse other restaurants</Link>} />
   }
@@ -63,23 +73,28 @@ export default function Restaurant() {
       <div className="mb-6">
         <MapView restaurant={restaurant} height="220px" interactive={false} />
       </div>
-      <div className="grid gap-3">
-        {items.map(item => (
-          <div key={item.id} className="border rounded-lg p-4 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              {item.image && <img src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover" />}
-              <div>
-                <h3 className="font-semibold">{item.name}</h3>
-                {item.desc && <p className="text-sm text-gray-500">{item.desc}</p>}
-                <p className="text-orange-600 font-medium mt-1">{formatPrice(item.price)}</p>
+      {Object.entries(menuByCategory).map(([category, categoryItems]) => (
+        <div key={category} className="mb-6">
+          <h2 className="text-lg font-bold text-gray-800 mb-3 border-b pb-2">{category}</h2>
+          <div className="grid gap-3">
+            {categoryItems.map(item => (
+              <div key={item.id} className="border rounded-lg p-4 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  {item.image && <img src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover" />}
+                  <div>
+                    <h3 className="font-semibold">{item.name}</h3>
+                    {item.desc && <p className="text-sm text-gray-500">{item.desc}</p>}
+                    <p className="text-orange-600 font-medium mt-1">{formatPrice(item.price)}</p>
+                  </div>
+                </div>
+                <button onClick={() => addToCart(item)} className="bg-orange-500 text-white px-4 py-2 rounded text-sm whitespace-nowrap">
+                  Add to Cart
+                </button>
               </div>
-            </div>
-            <button onClick={() => addToCart(item)} className="bg-orange-500 text-white px-4 py-2 rounded text-sm whitespace-nowrap">
-              Add to Cart
-            </button>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
 }

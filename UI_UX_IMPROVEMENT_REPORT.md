@@ -373,7 +373,7 @@ A consolidated list of the technical dimensions a full UI/UX pass must address, 
 | Phase | Focus | Status | Outcomes |
 |---|---|---|---|
 | 1 | Functional hardening | ✅ Completed | Visibility-aware polling, real rider GPS, debounced search, error surfacing, dismissible toasts |
-| 2 | Workflow & dispatch | ✅ Completed | Dynamic category management, rider delivery workflow, multi-status transitions, email password reset |
+| 2 | Workflow & dispatch | ✅ Completed | Dynamic category management, rider delivery workflow, multi-status transitions, email password reset, auto rider assignment on order confirmation, categorized restaurant menu display |
 | 3 | Design system | 🔄 Current | Tokens + Button/TextField/EmptyState components, motion layer, a11y pass, reduced-motion |
 | 4 | Checkout redesign | 📋 Backlog | 3-step wizard, live validation, sticky summary, autosave drafts |
 | 5 | Polish & Scale | 📋 Backlog | Animated tracking timeline, dark mode, i18n, performance optimization (lazy routes) |

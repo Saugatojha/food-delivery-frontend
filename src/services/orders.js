@@ -41,6 +41,21 @@ export async function getRiderEarnings() {
   return data
 }
 
+export async function getAvailableRiders() {
+  const { data } = await api.get('/owner/riders')
+  return data
+}
+
+export async function assignRiderToOrder(orderId, riderId) {
+  const { data } = await api.post(`/owner/orders/${orderId}/assign-rider`, { riderId })
+  return data
+}
+
+export async function autoAssignRider(orderId) {
+  const { data } = await api.post(`/owner/orders/${orderId}/auto-assign-rider`)
+  return data
+}
+
 export async function saveOrder(order) {
   const { data } = await api.post('/orders', order)
   return data
