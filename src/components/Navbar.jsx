@@ -18,9 +18,7 @@ const roleLinks = {
     { to: '/owner/orders', label: 'Orders' },
   ],
   rider: [
-    { to: '/owner', label: 'Dashboard' },
-    { to: '/owner/menu', label: 'Menu' },
-    { to: '/owner/orders', label: 'Orders' },
+    { to: '/rider', label: 'Dashboard' },
   ],
   admin: [
     { to: '/admin', label: 'Panel' },
@@ -52,7 +50,9 @@ export default function Navbar() {
 
   return (
     <nav className="bg-orange-500 text-white px-4 sm:px-6 py-3 flex items-center justify-between">
-      <Link to={user ? '/' : '/login'} className={`text-xl font-bold ${FOCUS_RING}`} aria-label="Home">Smart Serve</Link>
+      <Link to={user ? '/' : '/login'} className={`flex items-center ${FOCUS_RING}`} aria-label="Home">
+        <img src="/smartserve.png" alt="Smart Serve" className="h-8 w-auto" />
+      </Link>
 
       {user && (
         <>
