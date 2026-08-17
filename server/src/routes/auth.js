@@ -112,7 +112,6 @@ router.post('/register', registerLimiter, validate('name', 'email', 'password'),
     res.status(201).json({
       message: 'Registration successful. Please verify your email to login.',
       user: { id: user.id, name: user.name, email: user.email, role: user.role, restaurantId: user.restaurantId, emailVerified: false },
-      verificationToken,
       ...(process.env.NODE_ENV !== 'production' && emailResult.devLink ? { devLink: emailResult.devLink } : {}),
     })
   } catch (err) {
