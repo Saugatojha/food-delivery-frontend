@@ -15,6 +15,8 @@
 | [x] | No HTTPS enforcement (plain HTTP allowed). | Front-end uses whatever VITE_API_URL is set to. | Force HTTPS in production, add HSTS header. |
 | [x] | Weak/Static JWT secret (dev value). | server/src/config/env.js (not shown) | Use a strong 256-bit secret from a secret manager; rotate periodically. |
 | [x] | No input sanitisation for free-text fields (restaurant name, menu). | Various routes (routes/*.js) | Validate/escape strings (whitelist chars, length limits). |
+| [x] | No two-factor authentication. | None | Implement TOTP-based 2FA (speakeasy + qrcode): setup, enable, disable, verify during login. Opt-in, available to all roles. Backup codes on enable. |
+| [x] | Verification token leaked in registration response. | routes/auth.js register response | Removed `verificationToken` from always-on response; dev mode still provides `devLink` for testing. |
 | [x] | No account lockout / password-reset throttling. | Done: 5 failed logins → 15-min lockout (`423 ACCOUNT_LOCKED`), **persisted in DB** (`User.failedLoginAttempts` / `lockedUntil`) so it survives restarts and is consistent across processes; counter resets on successful login. Password reset is rate-limited (5 req/10 min), uses single-use SHA-256-hashed 30-min tokens, returns a generic message (no account enumeration), and clears the lockout on success. | — |
 | [x] | OpenStreetMap tile usage without attribution. | MapView.jsx | Add proper OSM attribution; consider a paid tile provider with API key. |
 
@@ -32,7 +34,7 @@
 | [x] | No global API rate-limit – potential DoS. | None | Apply express-rate-limit globally (e.g., 100 req/min per IP). |
 | [x] | No structured logging / monitoring. | No logger present. | Add Winston/Pino logger; expose /health endpoint. |
 | [x] | MySQL 8 with strong credentials — connection URL lives in `server/.env` (gitignored). | Done. | Rotate the default dev password before production. |
-| [x] | Hard-coded owner-restaurant linking (no UI). | Documentation. | Create admin UI to assign owners to restaurants; store relation in DB. |
+| [x] | Hard-coded owner-restaurant linking (no UI). | Documentation. | Create admin UI to assign owners to restaurants; store relation in DB. Owner can now add/remove riders from Dashboard. |
 | [x] | Test coverage lacks edge cases (invalid JWT, malformed bodies). | 152 total tests. | Add negative tests for auth failures, rate-limit triggers, CSRF, XSS payloads. |
 
 ## 3️⃣ Performance / Scalability Enhancements

@@ -21,6 +21,7 @@ SmartServe is a food ordering platform with four user roles: **Customer**, **Res
 | ORM              | Prisma 7                 | Database schema + migrations                                |
 | Database         | MySQL 8                  | Relational DB (via Prisma `@prisma/adapter-mariadb` driver) |
 | Auth             | bcrypt + JWT             | Password hashing + token auth                               |
+| 2FA              | speakeasy + qrcode       | TOTP two-factor authentication (Google Authenticator)       |
 | Security         | Helmet                   | CSP headers + HSTS preload                                  |
 | Input Validation | Custom sanitization      | XSS prevention + password strength                          |
 | Test (BE)        | Vitest                   | Backend route tests                                         |
@@ -53,6 +54,7 @@ frontend/ (port 5173)
                    │              ├─ /cart -> RoleRoute(customer) -> Cart (location picker → checkout)
                    │              ├─ /checkout -> RoleRoute(customer) -> Checkout (+ map + phone)
                    │              ├─ /orders -> RoleRoute(customer) -> OrderTracking (+ map)
+                   │              ├─ /account -> RoleRoute(customer) -> Account (profile + 2FA)
                     │              ├─ /owner -> RoleRoute(owner|rider) -> OwnerDashboard (Role-based: Orders/Menu/Settings/Earnings for owners; Deliveries/Earnings for riders)
                     │              ├─ /owner/menu -> RoleRoute(owner|rider) -> OwnerMenu
                     │              ├─ /owner/orders -> RoleRoute(owner|rider) -> OwnerOrders
@@ -73,13 +75,13 @@ server/ (port 5001)
     │   │   └── validate.js      validate() / validateOptional() field checkers; sanitizeString() XSS prevention;
     │   │                        Password validation (8+ chars, upper, lower, digit, special); email/name/length validation
     ├── routes/
-    │   ├── auth.js              POST /register (email normalized, unverified), POST /login (403 EMAIL_NOT_VERIFIED until verified), GET /verify-email, POST /resend-verification, POST /forgot-password, POST /reset-password, GET /me
+    │   ├── auth.js              POST /register (email normalized, unverified), POST /login (403 EMAIL_NOT_VERIFIED until verified; returns requires2FA + tempToken if 2FA enabled), GET /verify-email, POST /resend-verification, POST /forgot-password, POST /reset-password, GET /me, POST /2fa/setup, POST /2fa/enable, POST /2fa/disable, POST /2fa/verify
     │   ├── restaurants.js       GET /, GET /:id/menu
     │   ├── orders.js            POST / (accepts phone), GET /, GET /tracking/:id, PATCH /:id/status (role-scoped)
     │   ├── cart.js              GET /, POST /sync, POST /add, DELETE /:id (authenticated, validates items)
     │   ├── notifications.js     GET /, GET /unread-count, PATCH /:id/read, POST /read-all
     │   ├── upload.js            POST /image (multer → /uploads, returns relative URL)
-    │   ├── owner.js             GET/POST/PATCH/DELETE /menu (+ image), GET/POST/PATCH/DELETE /menu/categories, GET/PATCH /restaurant, GET /orders, GET /riders, PATCH /orders/:id/status (needs riderId to Confirm), PATCH /orders/:id/rider
+    │   ├── owner.js             GET/POST/PATCH/DELETE /menu (+ image), GET/POST/PATCH/DELETE /menu/categories, GET/POST/PATCH/DELETE /menu/subcategories, GET/PATCH /restaurant, GET /orders, GET /riders, GET /earnings, PATCH /orders/:id/status (needs riderId to Confirm), PATCH /orders/:id/rider, POST /orders/:id/auto-assign-rider
     │   ├── rider.js             GET /deliveries, GET /my-deliveries, GET /earnings, PATCH /orders/:id/accept, PATCH /orders/:id/reject, PATCH /orders/:id/status
     │   └── admin.js             GET /stats, GET/PATCH /users, GET/POST/PATCH/DELETE /restaurants
     └── utils/
@@ -89,8 +91,8 @@ server/ (port 5001)
         ├── urls.js              legacyUrlRewriteMiddleware rewrites stale localhost:5000 URLs to APP_URL
         └── errors.js            Consistent error response helpers
   prisma/
-    ├── schema.prisma            11 models (MenuItem category + image, User email verification, PasswordResetToken, Notification)
-    ├── seed.js                  Seeds 4 users (emailVerified: true), 7 restaurants (including Nepali), 26 menu items with categories
+    ├── schema.prisma             14 models (User with 2FA fields, Category, SubCategory, MenuItem category + image, User email verification, PasswordResetToken, Notification)
+    ├── seed.js                  Idempotent: skips if users exist; seeds 4 users (emailVerified: true), 7 restaurants, 14 categories, subcategories, 26 menu items
     ├── reset.js                 Refuses if server port 5001 in use, then prisma migrate reset --force (drop, migrate, re-seed)
     └── migrations/              MySQL migration files
 ```
@@ -136,7 +138,7 @@ src/
 ├── api/
 │   └── client.js                Axios -> '/api' (Vite dev proxy → localhost:5001). 10s timeout. 401 clears auth + redirects to /login except on public paths (/login, /register, /forgot-password, /reset-password, /verify-email).
 ├── context/
-│   ├── AuthContext.jsx           User state, login/register/logout/verifyEmail/resendVerification/forgotPassword/resetPassword via real API. Emails trimmed + lowercased.
+│   ├── AuthContext.jsx           User state, login/register/logout/verify2FA/verifyEmail/resendVerification/forgotPassword/resetPassword via real API. Emails trimmed + lowercased. Login handles requires2FA flow.
 │   ├── ToastContext.jsx          Toast notification system. Auto-dismiss after 3s, manual dismiss button, max 3 visible toasts.
 │   └── NotificationContext.jsx   Polls /notifications/unread-count (15s), bell badge, Notification API browser push.
 ├── utils/
@@ -153,11 +155,12 @@ src/
 │   ├── MapView.jsx               Leaflet map: multi-restaurant markers with popups OR single restaurant/delivery/rider + OSRM road route.
 │   ├── Navbar.jsx                Brand link + role-aware nav links + cart badge + notification bell + user name + logout + hamburger menu.
 │   ├── ProtectedRoute.jsx        Auth gate.
-│   └── RoleRoute.jsx             Role gate.
+│   ├── RoleRoute.jsx             Role gate.
+│   └── TwoFactorSetup.jsx        TOTP 2FA setup/enable/disable component with QR code and backup codes.
 ├── data/
 │   └── mock.js                   Backup mock data with Kathmandu coordinates.
 ├── pages/
-│   ├── Login.jsx                 Email/username + password with inline validation + toast on error. Redirects by role after login. Shows "verify email" banner on EMAIL_NOT_VERIFIED.
+│   ├── Login.jsx                 Email/username + password with inline validation + toast on error. Handles 2FA challenge (requires2FA + tempToken flow). Redirects by role after login. Shows "verify email" banner on EMAIL_NOT_VERIFIED.
 │   ├── Register.jsx              Name (first/middle/last) + email/password with inline validation. On success → /verify-email.
 │   ├── VerifyEmail.jsx           Consumes GET /auth/verify-email?token=, resend link UI.
 │   ├── ForgotPassword.jsx        Email/username form → POST /auth/forgot-password; shows generic success + devLink (dev only).
@@ -165,17 +168,18 @@ src/
 │   ├── Terms.jsx                 Terms of Service page.
 │   ├── Privacy.jsx               Privacy Policy page.
 │   ├── Home.jsx                  Map showing all 7 restaurants + search by name/cuisine (debounced 300ms) + cuisine filter chips (incl. Nepali) + sort + retry on failure.
-│   ├── Restaurant.jsx            Map showing restaurant location + menu items (with images) from API grouped by dynamic category.
+│   ├── Restaurant.jsx            Map showing restaurant location + menu items from API grouped by dynamic category.
+│   ├── Account.jsx               Customer account page with profile info + 2FA setup (TwoFactorSetup component).
 │   ├── Cart.jsx                  Cart items with qty +/-/remove + total + empty state + delivery-location map picker → proceeds to checkout.
 │   ├── Checkout.jsx              Phone + address + map picker (prefilled from cart location) + inline validation. Sends delivery coords to API.
 │   ├── OrderTracking.jsx         5-step progress bar + map + real rider coords marker (when provided) + phone display; visibility-aware polling every 15s (pauses when hidden, refetches on focus).
 │   ├── owner/
-│   │   ├── Dashboard.jsx         Unified role dashboard: Owner tabs (Orders with dynamic transitions/rider assignment, Menu with dynamic category management, Settings, Earnings); Rider tabs (Deliveries with 'Start Delivery'/'Mark Delivered', Earnings).
+│   │   ├── Dashboard.jsx         Unified role dashboard: Owner tabs (Orders with dynamic transitions/rider assignment, Menu with dynamic category/subcategory management, Settings with 2FA, Earnings); Rider tabs (Deliveries with 'Start Delivery'/'Mark Delivered', Settings with 2FA, Earnings).
 │   │   ├── MenuManagement.jsx    Standalone menu management view.
 │   │   └── Orders.jsx            Standalone owner orders view.
 │   └── admin/
 │       └── Panel.jsx             Admin oversight: System stats, user role management, and restaurant CRUD.
-├── App.jsx                       Route definitions (login, register, verify-email, forgot-password, reset-password, terms, privacy + role-protected routes).
+├── App.jsx                       Route definitions (login, register, verify-email, forgot-password, reset-password, terms, privacy + role-protected routes incl. /account, /rider).
 ├── main.jsx                      ReactDOM.createRoot + BrowserRouter + Leaflet CSS.
 ├── e2e/
 │   └── login.spec.js             Playwright: 5 tests — login flow, wrong-password error, server-unreachable message, forgot-password reachability, reset-password invalid-link.
@@ -198,7 +202,7 @@ server/
 │   │   ├── auth.js               authenticate (JWT verify via Authorization header) + authorize (role check).
 │   │   └── validate.js           validate() / validateOptional() field checkers.
 │   ├── routes/
-│   │   ├── auth.js               POST /api/auth/register, POST /api/auth/login, GET /api/auth/verify-email?token=, POST /api/auth/resend-verification, POST /api/auth/forgot-password, POST /api/auth/reset-password, GET /api/auth/me
+│       │   ├── auth.js               POST /api/auth/register, POST /api/auth/login (returns requires2FA if 2FA enabled), GET /api/auth/verify-email?token=, POST /api/auth/resend-verification, POST /api/auth/forgot-password, POST /api/auth/reset-password, GET /api/auth/me, POST /api/auth/2fa/setup, POST /api/auth/2fa/enable, POST /api/auth/2fa/disable, POST /api/auth/2fa/verify
 │   │   ├── restaurants.js        GET /api/restaurants, GET /api/restaurants/:id/menu
 │   │   ├── orders.js             POST /api/orders (accepts phone), GET /api/orders, GET /api/orders/tracking/:id, PATCH /api/orders/:id/status
 │   │   │                         PATCH status is restricted to owner/rider/admin and verified against restaurant ownership (owner) or the assigned rider
@@ -228,7 +232,7 @@ server/
 
 ## Prisma Schema
 
-11 models: User, Restaurant, MenuItem, Order, OrderItem, Payment, Delivery, Rating, Notification, PasswordResetToken.
+14 models: User, Restaurant, MenuItem, Category, SubCategory, Order, OrderItem, Payment, Delivery, Rating, Notification, PasswordResetToken.
 
 Key coordinate fields (for map feature):
 
@@ -243,6 +247,15 @@ Key contact field:
 Email verification fields:
 
 - `User.emailVerified` / `User.verificationToken` / `User.verificationExpires`
+
+Two-factor authentication fields:
+
+- `User.twoFactorSecret` (TOTP secret, base32) / `User.twoFactorEnabled` (boolean, default false)
+
+Category/SubCategory fields:
+
+- `Category.restaurantId` / `Category.name` — unique per restaurant
+- `SubCategory.categoryId` / `SubCategory.name` — unique per category
 
 Password reset fields:
 
@@ -306,12 +319,16 @@ All endpoints require `Authorization: Bearer <token>` header except auth routes.
 | Method | Endpoint                        | Body                        | Response                                                                                   |
 | ------ | ------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------ |
 | POST   | `/api/auth/register`            | `{ name, email, password }` | `201 { message, user: { emailVerified: false }, devLink? }` (no token — must verify email) |
-| POST   | `/api/auth/login`               | `{ login, password }`       | `{ token, user }` or `403 { code: 'EMAIL_NOT_VERIFIED', email }`                           |
+| POST   | `/api/auth/login`               | `{ login, password }`       | `{ token, user }` or `{ requires2FA: true, tempToken }` or `403 { code: 'EMAIL_NOT_VERIFIED', email }` |
 | GET    | `/api/auth/verify-email?token=` | —                           | `{ message }` (marks email verified)                                                       |
 | POST   | `/api/auth/resend-verification` | `{ login }`                 | `{ message, devLink? }`                                                                    |
 | POST   | `/api/auth/forgot-password`     | `{ login }`                 | `{ message, devLink? }` (generic message — no email enumeration)                           |
 | POST   | `/api/auth/reset-password`      | `{ token, password }`       | `{ message }` (single-use, 30-min expiry, resets lockout)                                  |
-| GET    | `/api/auth/me`                  | —                           | `{ user }`                                                                                 |
+| GET    | `/api/auth/me`                  | —                           | `{ user }` (includes twoFactorEnabled)                                                     |
+| POST   | `/api/auth/2fa/setup`           | —                           | `{ secret, qrCode }` (QR data URL for authenticator app)                                  |
+| POST   | `/api/auth/2fa/enable`          | `{ token }`                 | `{ message, backupCodes }` (6-digit TOTP code from authenticator app)                      |
+| POST   | `/api/auth/2fa/disable`         | `{ token }`                 | `{ message }` (requires current TOTP code)                                                 |
+| POST   | `/api/auth/2fa/verify`          | `{ tempToken, token }`      | `{ token, user }` (completes 2FA login with TOTP code)                                    |
 
 Emails are normalized (trimmed + lowercased) on register and login. New users must verify their email before the first login. In dev (`NODE_ENV !== 'production'`), `mailer.js` prints the verification URL to the server console instead of sending real email; the frontend also surfaces it as a `devLink`.
 
@@ -370,15 +387,22 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
 | GET    | `/api/owner/orders`                  | —                                             | `[ Order ]`                                                            |
 | PATCH  | `/api/owner/orders/:id/status`       | `{ status, riderId? }`                        | `Order` — `riderId` is **required** to confirm (`Pending → Confirmed`) |
 | PATCH  | `/api/owner/orders/:id/rider`        | `{ riderId }`                                 | `Order` — (re)assign a rider to a non-terminal order                   |
+| POST   | `/api/owner/orders/:id/auto-assign-rider` | —                                        | `{ rider, order }` — auto-assigns first available rider                |
 | GET    | `/api/owner/riders`                  | —                                             | `[ { id, name, email } ]` — rider accounts for assignment              |
+| POST   | `/api/owner/riders`                  | `{ name, email, password }`                   | `{ id, name, email }` — creates a new rider account                    |
+| DELETE | `/api/owner/riders/:id`              | —                                             | `{ message }` — removes rider from restaurant                          |
 | GET    | `/api/owner/menu`                    | —                                             | `[ MenuItem ]`                                                         |
-| POST   | `/api/owner/menu`                    | `{ name, price, category?, desc?, image? }`   | `MenuItem`                                                             |
-| PATCH  | `/api/owner/menu/:id`                | `{ name?, price?, category?, desc?, image? }` | `MenuItem`                                                             |
+| POST   | `/api/owner/menu`                    | `{ name, price, category?, subCategory?, desc? }` | `MenuItem` (auto-creates Category record if new)                   |
+| PATCH  | `/api/owner/menu/:id`                | `{ name?, price?, category?, subCategory?, desc? }` | `MenuItem`                                                     |
 | DELETE | `/api/owner/menu/:id`                | —                                             | `{ message }`                                                          |
-| GET    | `/api/owner/menu/categories`         | —                                             | `[ string ]` (distinct category list for restaurant)                   |
+| GET    | `/api/owner/menu/categories`         | —                                             | `[{ name, subCategories: [{ id, name }] }]`                           |
 | POST   | `/api/owner/menu/categories`         | `{ name }`                                    | `201 { category }` (creates custom category, max 50 chars)             |
 | PATCH  | `/api/owner/menu/categories/:oldName`| `{ newName }`                                 | `{ message, newCategory }` (renames category across all items)         |
 | DELETE | `/api/owner/menu/categories/:name`   | —                                             | `{ message }` (removes category and all items within)                  |
+| POST   | `/api/owner/menu/subcategories`      | `{ name, category }`                          | `201 { id, name, category }`                                           |
+| PATCH  | `/api/owner/menu/subcategories/:id`  | `{ name }`                                    | `{ message, name }` (renames subcategory)                              |
+| DELETE | `/api/owner/menu/subcategories/:id`  | —                                             | `{ message }` (resets items to "General")                              |
+| GET    | `/api/owner/earnings`                | —                                             | `{ totalEarnings, totalDeliveries, dailyEarnings, dailyCount, weeklyEarnings, weeklyCount }` |
 
 ### Rider
 
@@ -465,6 +489,34 @@ Uploaded files land in `server/uploads/` and are served at `/uploads/...`. The r
   - Owner **Menu** add/edit forms (per-item images, both Dashboard tab and `/owner/menu` page).
 - **Display** — menu item thumbnails appear in the owner menu lists, Cart, and the customer Restaurant page.
 
+### Two-Factor Authentication (2FA)
+
+- **TOTP-based** — Uses Google Authenticator or any TOTP-compatible authenticator app.
+- **Setup flow** — User clicks "Enable 2FA" in Settings/Account, backend generates a TOTP secret and QR code, user scans with authenticator app and enters a 6-digit code to confirm.
+- **Login flow** — If 2FA is enabled, login returns `{ requires2FA: true, tempToken }` instead of a real JWT. Frontend shows a 6-digit code input; backend verifies the TOTP code and issues the real JWT.
+- **Disable flow** — User enters current TOTP code to disable 2FA; secret is removed from the database.
+- **Backup codes** — 8 one-time-use codes generated on enable (displayed once, stored client-side).
+- **Available to all roles** — Customer (Account page), Owner/Rider (Dashboard Settings), Admin (Admin Panel).
+- **Opt-in** — `User.twoFactorEnabled` defaults to `false`; existing users are unaffected.
+
+### Dynamic Category & Subcategory Management
+
+- **Category/SubCategory models** — Prisma models with `@@unique([restaurantId, name])` and `@@unique([categoryId, name])` constraints.
+- **CRUD endpoints** — `GET/POST/PATCH/DELETE /owner/menu/categories` and `POST/PATCH/DELETE /owner/menu/subcategories`.
+- **Auto-creation** — Adding a menu item with a new category name auto-upserts the Category record.
+- **Dynamic input fields** — Category and subcategory fields in the add/edit menu item forms are text inputs with `<datalist>` autocomplete suggestions (not hardcoded dropdowns), allowing users to type new category names directly.
+
+### Restaurant Images
+
+- **Local files** — Restaurant images stored as static files in `public/` (burgerbarn.png, curryhouse.png, momohouse.png, noodenest.png, sushispot.png, tocotown.png).
+- **Seed data** — References local paths (`/burgerbarn.png`) instead of external placeholder URLs.
+- **Display** — `object-contain` on Home page cards and Restaurant detail page for proper image rendering.
+
+### Owner Earnings
+
+- **Dedicated endpoint** — `GET /api/owner/earnings` returns daily, weekly, and total earnings for the owner's restaurant (sum of `Order.total` for delivered orders).
+- **Separate from rider earnings** — Owner earnings are scoped to the restaurant; rider earnings are scoped to the rider's deliveries.
+
 ### Email Normalization
 
 Emails are trimmed and lowercased both on the frontend (AuthContext) and backend (auth routes), so `John@Test.com` matches `john@test.com`.
@@ -537,7 +589,9 @@ Restaurant menus feature dynamic category management instead of hardcoded cuisin
 
 ### Recent Security Improvements
 
-- **Email verification optimization** - Registration now includes verification token in response, eliminating the need for double-send. Users are automatically redirected with the token for immediate verification.
+- **2FA (TOTP)** - Opt-in two-factor authentication using Google Authenticator / Authy. Setup generates a QR code and backup codes; login adds a 6-digit code step when enabled. Available to all roles (customers via Account page, owners/riders via Dashboard Settings, admins via Admin Panel).
+- **Email verification token removed from register response** - The raw `verificationToken` is no longer sent in the registration API response, preventing email verification bypass. Dev mode still provides `devLink` for testing.
+- **Email verification optimization** - Users are automatically redirected with the dev link for immediate verification in dev mode.
 - **Admin data scope** - Admin panel is properly scoped to only expose user management (id, name, email, role, restaurantId) and restaurant CRUD operations. No customer order data is accessible via admin routes.
 - **Forgot password functionality** - Properly implemented with secure token handling and rate limiting.
 
@@ -685,7 +739,7 @@ A user story is **Done** only when all of the following are true:
 | App shell             | Providers + global layout + route table       | `ErrorBoundary`, `AuthProvider`, `ToastProvider`, `NotificationProvider`, `Navbar`, `<Routes>`                      |
 | Route guards          | Authorization at route level                  | `ProtectedRoute` (logged-in), `RoleRoute` (role check)                                                              |
 | Pages                 | Route-level views / screens                   | `Login`, `Register`, `VerifyEmail`, `ForgotPassword`, `ResetPassword`, `Terms`, `Privacy`, `Home`, `Restaurant`, `Cart`, `Checkout`, `OrderTracking`, `owner/Dashboard`, `admin/Panel` |
-| Reusable components   | Shared building blocks used by many pages     | `Navbar`, `MapView`, `ImageUpload`, `LoadingSkeleton`, `EmptyState`, `ErrorBoundary`, `AuthShell`                          |
+| Reusable components   | Shared building blocks used by many pages     | `Navbar`, `MapView`, `ImageUpload`, `LoadingSkeleton`, `EmptyState`, `ErrorBoundary`, `AuthShell`, `TwoFactorSetup`                 |
 | Context providers     | Cross-cutting shared state (no prop drilling) | `AuthContext`, `ToastContext`, `NotificationContext`                                                                |
 | Services / API client | Data access layer                             | `api/client.js`, `services/orders.js`                                                                               |
 
@@ -711,10 +765,12 @@ App
                ├─ /cart             → RoleRoute(customer) → Cart → MapView
                ├─ /checkout         → RoleRoute(customer) → Checkout → MapView
                ├─ /orders           → RoleRoute(customer) → OrderTracking
-               ├─ /owner            → RoleRoute(owner|rider)  → owner/Dashboard → ImageUpload, CardSkeleton
-               ├─ /owner/menu       → RoleRoute(owner|rider)  → owner/MenuManagement → ImageUpload
-               ├─ /owner/orders     → RoleRoute(owner|rider)  → owner/Orders
-               └─ /admin            → RoleRoute(admin)  → admin/Panel
+               ├─ /account          → RoleRoute(customer) → Account → TwoFactorSetup
+               ├─ /owner            → RoleRoute(owner)    → owner/Dashboard → ImageUpload, CardSkeleton, TwoFactorSetup
+               ├─ /owner/menu       → RoleRoute(owner)    → owner/MenuManagement
+               ├─ /owner/orders     → RoleRoute(owner)    → owner/Orders
+               ├─ /rider            → RoleRoute(rider)    → owner/Dashboard → TwoFactorSetup
+               └─ /admin            → RoleRoute(admin)    → admin/Panel → TwoFactorSetup
 ```
 
 ### Components needed: signup → login → dashboard
