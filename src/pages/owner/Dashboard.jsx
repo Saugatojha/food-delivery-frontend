@@ -572,16 +572,16 @@ export default function OwnerDashboard() {
                   <div key={cat} className="mb-4">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{cat}</h3>
-                      <div className="flex gap-1">
+                      <div className="flex gap-2">
                         <button 
                           onClick={() => setEditingCategory({ oldName: cat, newName: cat })}
-                          className="text-blue-600 text-xs hover:underline"
+                          className="text-blue-600 text-sm font-medium px-2 py-0.5 rounded hover:bg-blue-50"
                         >
                           Rename
                         </button>
                         <button 
                           onClick={() => setConfirmAction({ type: 'deleteCategory', categoryName: cat, itemCount: items.length })}
-                          className="text-red-600 text-xs hover:underline"
+                          className="text-red-600 text-sm font-medium px-2 py-0.5 rounded hover:bg-red-50"
                         >
                           Delete
                         </button>
