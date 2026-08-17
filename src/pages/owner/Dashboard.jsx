@@ -99,10 +99,11 @@ export default function OwnerDashboard() {
 
   const fetchEarnings = useCallback(async () => {
     try {
-      const data = await getRiderEarnings()
+      const url = isRider ? '/rider/earnings' : '/owner/earnings'
+      const { data } = await api.get(url)
       setEarnings(data)
     } catch { }
-  }, [])
+  }, [isRider])
 
   useEffect(() => {
     fetchData()

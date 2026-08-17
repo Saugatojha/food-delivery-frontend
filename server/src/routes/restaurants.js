@@ -45,7 +45,6 @@ router.get('/:id/menu', authenticate, async (req, res) => {
       orderBy: { name: 'asc' },
     })
 
-    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600')
     res.json({ restaurant, items })
   } catch (err) {
     serverError(res, 'Failed to fetch menu')

@@ -558,6 +558,39 @@ router.patch('/orders/:id/status', validate('status'), async (req, res) => {
   }
 })
 
+router.get('/earnings', async (req, res) => {
+  try {
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const deliveries = await prisma.order.findMany({
+      where: { restaurantId: restaurant.id, status: 'Delivered' },
+      select: { total: true, createdAt: true, id: true },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const weekStart = new Date(today)
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+
+    const daily = deliveries.filter(o => new Date(o.createdAt) >= today)
+    const weekly = deliveries.filter(o => new Date(o.createdAt) >= weekStart)
+    const totalEarnings = deliveries.reduce((s, o) => s + o.total, 0)
+
+    res.json({
+      totalEarnings,
+      totalDeliveries: deliveries.length,
+      dailyEarnings: daily.reduce((s, o) => s + o.total, 0),
+      dailyCount: daily.length,
+      weeklyEarnings: weekly.reduce((s, o) => s + o.total, 0),
+      weeklyCount: weekly.length,
+    })
+  } catch (err) {
+    serverError(res, 'Failed to fetch earnings')
+  }
+})
+
 module.exports = router
 
 
