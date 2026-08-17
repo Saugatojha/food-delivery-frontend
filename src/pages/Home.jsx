@@ -135,7 +135,7 @@ export default function Home() {
               >
                 <div className="w-full h-32 bg-gray-100 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
                   {r.image ? (
-                    <img src={r.image} alt={r.name} className="w-full h-full object-cover" />
+                    <img src={r.image} alt={r.name} className="w-full h-full object-contain p-1" />
                   ) : (
                     <span className="text-4xl" role="img" aria-label="Restaurant placeholder">🍽</span>
                   )}

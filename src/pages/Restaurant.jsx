@@ -64,7 +64,7 @@ export default function Restaurant() {
         <Link to="/" className="text-sm text-orange-500">&larr; Back to restaurants</Link>
         <div className="flex items-center gap-4 mt-2">
           {restaurant.image && (
-            <img src={restaurant.image} alt={restaurant.name} className="w-20 h-20 rounded-lg object-cover" />
+            <img src={restaurant.image} alt={restaurant.name} className="w-20 h-20 rounded-lg object-contain bg-gray-100" />
           )}
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold">{restaurant.name}</h1>
