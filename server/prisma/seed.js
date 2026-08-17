@@ -11,6 +11,8 @@ async function main() {
   await prisma.orderItem.deleteMany()
   await prisma.order.deleteMany()
   await prisma.menuItem.deleteMany()
+  await prisma.subCategory.deleteMany()
+  await prisma.category.deleteMany()
   await prisma.user.updateMany({ data: { restaurantId: null } })
   await prisma.restaurant.deleteMany()
   await prisma.$executeRawUnsafe('ALTER TABLE Restaurant AUTO_INCREMENT = 1')
@@ -63,6 +65,13 @@ async function main() {
   for (const name of pizzaCategories) {
     await prisma.category.create({ data: { restaurantId: 1, name } })
   }
+
+  const pizzaCat = await prisma.category.findUnique({ where: { restaurantId_name: { restaurantId: 1, name: 'Pizza' } } })
+  const appetizerCat = await prisma.category.findUnique({ where: { restaurantId_name: { restaurantId: 1, name: 'Appetizer' } } })
+  for (const name of ['Vegetarian', 'Non-Vegetarian']) {
+    await prisma.subCategory.create({ data: { categoryId: pizzaCat.id, name } })
+  }
+  await prisma.subCategory.create({ data: { categoryId: appetizerCat.id, name: 'Hot' } })
 
   await prisma.$executeRawUnsafe("DELETE FROM MenuItem")
   await prisma.$executeRawUnsafe('ALTER TABLE MenuItem AUTO_INCREMENT = 1')

@@ -186,7 +186,7 @@ router.delete('/menu/:id', async (req, res) => {
   }
 })
 
-// Get all categories for this restaurant
+// Get all categories with subcategories for this restaurant
 router.get('/menu/categories', async (req, res) => {
   try {
     const restaurant = await requireRestaurant(req.user.id, res)
@@ -194,10 +194,10 @@ router.get('/menu/categories', async (req, res) => {
 
     const cats = await prisma.category.findMany({
       where: { restaurantId: restaurant.id },
-      select: { name: true },
+      include: { subCategories: { select: { name: true }, orderBy: { name: 'asc' } } },
       orderBy: { name: 'asc' },
     })
-    res.json(cats.map(c => c.name))
+    res.json(cats.map(c => ({ name: c.name, subCategories: c.subCategories.map(s => s.name) })))
   } catch (err) {
     serverError(res, 'Failed to fetch categories')
   }
@@ -292,6 +292,94 @@ router.delete('/menu/categories/:name', async (req, res) => {
     res.json({ message: `Deleted category and ${deleted.count} items` })
   } catch (err) {
     serverError(res, 'Failed to delete category')
+  }
+})
+
+// Add a subcategory under a category
+router.post('/menu/subcategories', validate('name', 'category'), async (req, res) => {
+  try {
+    const { name, category } = req.body
+    if (!name || name.trim().length === 0) return badRequest(res, 'Subcategory name cannot be empty')
+    if (name.length > 50) return badRequest(res, 'Subcategory name must be under 50 characters')
+
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const cat = await prisma.category.findUnique({
+      where: { restaurantId_name: { restaurantId: restaurant.id, name: category } },
+    })
+    if (!cat) return notFound(res, 'Category not found')
+
+    const existing = await prisma.subCategory.findUnique({
+      where: { categoryId_name: { categoryId: cat.id, name: name.trim() } },
+    })
+    if (existing) return badRequest(res, 'Subcategory already exists')
+
+    const sub = await prisma.subCategory.create({
+      data: { categoryId: cat.id, name: name.trim() },
+    })
+    res.status(201).json({ id: sub.id, name: sub.name, category })
+  } catch (err) {
+    serverError(res, 'Failed to add subcategory')
+  }
+})
+
+// Delete a subcategory
+router.delete('/menu/subcategories/:id', async (req, res) => {
+  try {
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const subId = Number(req.params.id)
+    const sub = await prisma.subCategory.findUnique({
+      where: { id: subId },
+      include: { category: true },
+    })
+    if (!sub || sub.category.restaurantId !== restaurant.id) return notFound(res, 'Subcategory not found')
+
+    await prisma.menuItem.updateMany({
+      where: { restaurantId: restaurant.id, category: sub.category.name, subCategory: sub.name },
+      data: { subCategory: 'General' },
+    })
+
+    await prisma.subCategory.delete({ where: { id: subId } })
+    res.json({ message: 'Subcategory deleted' })
+  } catch (err) {
+    serverError(res, 'Failed to delete subcategory')
+  }
+})
+
+// Rename a subcategory
+router.patch('/menu/subcategories/:id', validate('name'), async (req, res) => {
+  try {
+    const { name } = req.body
+    if (!name || name.trim().length === 0) return badRequest(res, 'Name cannot be empty')
+
+    const restaurant = await requireRestaurant(req.user.id, res)
+    if (!restaurant) return
+
+    const subId = Number(req.params.id)
+    const sub = await prisma.subCategory.findUnique({
+      where: { id: subId },
+      include: { category: true },
+    })
+    if (!sub || sub.category.restaurantId !== restaurant.id) return notFound(res, 'Subcategory not found')
+
+    const dup = await prisma.subCategory.findUnique({
+      where: { categoryId_name: { categoryId: sub.categoryId, name: name.trim() } },
+    })
+    if (dup && dup.id !== sub.id) return badRequest(res, 'Subcategory name already exists')
+
+    await prisma.subCategory.update({ where: { id: subId }, data: { name: name.trim() } })
+
+    await prisma.menuItem.updateMany({
+      where: { restaurantId: restaurant.id, category: sub.category.name, subCategory: sub.name },
+      data: { subCategory: name.trim() },
+    })
+
+    res.json({ message: 'Subcategory renamed', name: name.trim() })
+  } catch (err) {
+    serverError(res, 'Failed to rename subcategory')
   }
 })
 

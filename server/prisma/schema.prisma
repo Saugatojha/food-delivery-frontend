@@ -77,8 +77,20 @@ model Category {
   createdAt    DateTime @default(now())
 
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  subCategories SubCategory[]
 
   @@unique([restaurantId, name])
+}
+
+model SubCategory {
+  id         Int      @id @default(autoincrement())
+  categoryId Int
+  name       String
+  createdAt  DateTime @default(now())
+
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([categoryId, name])
 }
 
 model Order {

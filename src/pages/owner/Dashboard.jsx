@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
-import { formatPrice, CUISINE_CATEGORIES, CATEGORY_SUBCATEGORIES } from '../../data/mock'
+import { formatPrice, CUISINE_CATEGORIES } from '../../data/mock'
 import { CardSkeleton } from '../../components/LoadingSkeleton'
 import ImageUpload from '../../components/ImageUpload'
 import MapView from '../../components/MapView'
@@ -565,22 +565,22 @@ export default function OwnerDashboard() {
               <p className="text-gray-400 text-center py-8">No categories yet. Create one to get started!</p>
             ) : (
               customCategories.map(cat => {
-                const items = menuItems.filter(i => i.category === cat)
+                const items = menuItems.filter(i => i.category === cat.name)
                 if (items.length === 0) return null
                 const subCats = [...new Set(items.map(i => i.subCategory || 'General'))]
                 return (
-                  <div key={cat} className="mb-4">
+                  <div key={cat.name} className="mb-4">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{cat}</h3>
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{cat.name}</h3>
                       <div className="flex gap-2">
                         <button 
-                          onClick={() => setEditingCategory({ oldName: cat, newName: cat })}
+                          onClick={() => setEditingCategory({ oldName: cat.name, newName: cat.name })}
                           className="text-blue-600 text-sm font-medium px-2 py-0.5 rounded hover:bg-blue-50"
                         >
                           Rename
                         </button>
                         <button 
-                          onClick={() => setConfirmAction({ type: 'deleteCategory', categoryName: cat, itemCount: items.length })}
+                          onClick={() => setConfirmAction({ type: 'deleteCategory', categoryName: cat.name, itemCount: items.length })}
                           className="text-red-600 text-sm font-medium px-2 py-0.5 rounded hover:bg-red-50"
                         >
                           Delete
@@ -669,10 +669,21 @@ export default function OwnerDashboard() {
                 <p className="text-xs text-gray-600 mb-2 font-medium">Categories ({customCategories.length})</p>
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {customCategories.map(cat => {
-                    const itemCount = menuItems.filter(i => i.category === cat).length
+                    const itemCount = menuItems.filter(i => i.category === cat.name).length
                     return (
-                      <div key={cat} className="text-xs bg-gray-50 p-2 rounded flex items-center justify-between">
-                        <span className="truncate">{cat} ({itemCount})</span>
+                      <div key={cat.name} className="text-xs bg-gray-50 p-2 rounded">
+                        <div className="flex items-center justify-between">
+                          <span className="truncate font-medium">{cat.name} ({itemCount})</span>
+                        </div>
+                        {cat.subCategories.length > 0 && (
+                          <div className="mt-1 ml-2 flex flex-wrap gap-1">
+                            {cat.subCategories.map(sub => (
+                              <span key={sub} className="inline-flex items-center bg-white border rounded px-1.5 py-0.5 text-[10px]">
+                                {sub}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -688,12 +699,12 @@ export default function OwnerDashboard() {
                   value={editingItem.name} onChange={e => setEditingItem(p => ({ ...p, name: e.target.value }))} required />
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={editingItem.category} onChange={e => setEditingItem(p => ({ ...p, category: e.target.value, subCategory: '' }))}>
-                  {customCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  {customCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                 </select>
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={editingItem.subCategory} onChange={e => setEditingItem(p => ({ ...p, subCategory: e.target.value }))}>
                   <option value="">Select subcategory</option>
-                  {(CATEGORY_SUBCATEGORIES[editingItem.category] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                  {(customCategories.find(c => c.name === editingItem.category)?.subCategories || []).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <input className="border p-2 rounded w-full mb-2 text-sm" type="number" step="0.01" placeholder="Price (NPR)"
                   value={editingItem.price} onChange={e => setEditingItem(p => ({ ...p, price: e.target.value }))} required />
@@ -716,12 +727,12 @@ export default function OwnerDashboard() {
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={newItem.category} onChange={e => setNewItem(p => ({ ...p, category: e.target.value, subCategory: '' }))}>
                   <option value="">Select category</option>
-                  {customCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  {customCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                 </select>
                 <select className="border p-2 rounded w-full mb-2 text-sm"
                   value={newItem.subCategory} onChange={e => setNewItem(p => ({ ...p, subCategory: e.target.value }))}>
                   <option value="">Select subcategory</option>
-                  {(CATEGORY_SUBCATEGORIES[newItem.category] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                  {(customCategories.find(c => c.name === newItem.category)?.subCategories || []).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <input className="border p-2 rounded w-full mb-2 text-sm" type="number" step="0.01" placeholder="Price (NPR)"
                   value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))} required />
